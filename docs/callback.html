@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SpotTV login</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #121212; color: #fff; text-align: center; padding: 15vh 24px; }
+  h1 { color: #1DB954; }
+  a { color: #1DB954; }
+</style>
+</head>
+<body>
+<h1 id="title">Finishing login&hellip;</h1>
+<p id="msg">Sending you back to your TV.</p>
+<script>
+// Spotify only allows https redirect URIs, so it lands here. This page hands the login code on to
+// the TV, which is listening on the local network (the TV's address travels in "state").
+// Only private-network addresses are accepted, so this page can't be used to redirect elsewhere.
+(function () {
+  var q = new URLSearchParams(location.search);
+  var state = q.get('state') || '';
+  var m = /^((?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}):(\d{2,5}):[0-9a-f]{8,}$/.exec(state);
+  var title = document.getElementById('title');
+  var msg = document.getElementById('msg');
+  if (!m) {
+    title.textContent = 'Login link not recognised';
+    msg.textContent = 'Scan the code on your TV again to start over.';
+    return;
+  }
+  var target = 'http://' + m[1] + ':' + m[2] + '/callback' + location.search;
+  msg.innerHTML = 'If nothing happens, <a href="' + target.replace(/"/g, '&quot;') + '">tap here</a>. Your phone must be on the same Wi-Fi as the TV.';
+  location.replace(target);
+})();
+</script>
+</body>
+</html>

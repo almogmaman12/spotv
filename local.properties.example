@@ -1,0 +1,12 @@
+# Copy to local.properties and fill in. local.properties is gitignored.
+sdk.dir=/path/to/your/Android/Sdk
+
+# https://developer.spotify.com/dashboard  (no client secret needed: login uses PKCE)
+SPOTIFY_CLIENT_ID=your_spotify_client_id_here
+
+# Must be added as a Redirect URI in the Spotify dashboard. Default is this repo's GitHub Pages
+# page (docs/callback.html); change it only if you host that page somewhere else.
+SPOTIFY_REDIRECT_URI=https://almogmaman12.github.io/spotv/callback.html
+
+# https://developers.spicylyrics.org/dashboard
+SPICY_LYRICS_API_KEY=sl_sk_your_spicy_lyrics_key_here

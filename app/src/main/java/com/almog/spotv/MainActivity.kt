@@ -1,0 +1,128 @@
+package com.almog.spotv
+
+import android.os.Bundle
+import android.view.KeyEvent
+import android.view.WindowManager
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.almog.spotv.lyrics.viewmodel.LyricsViewModel
+import com.almog.spotv.spotify.NowPlaying
+import com.almog.spotv.spotify.QueueItem
+import com.almog.spotv.ui.TvRoot
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+
+class MainActivity : ComponentActivity() {
+    private val tv: TvViewModel by viewModels()
+    private val lyricsVm: LyricsViewModel by viewModels()
+
+    private var lastTrackId: String? = null
+    private val prefetched = LinkedHashSet<String>()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+        seedLyricsFontSize()
+
+        setContent { TvRoot(tv, lyricsVm) }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                // Logged in: follow the player. Logged out: serve the phone-login page.
+                launch {
+                    tv.loggedIn.collectLatest { loggedIn ->
+                        if (loggedIn) tv.player.runPolling() else pairUntilLoggedIn()
+                    }
+                }
+                launch { tv.player.state.collect { syncLyrics(it) } }
+                launch { tv.player.queue.collect { prefetchLyrics(it) } }
+            }
+        }
+    }
+
+    private suspend fun pairUntilLoggedIn() {
+        while (!tv.loggedIn.value) {
+            tv.runPairing()
+            if (!tv.loggedIn.value) delay(5_000L)
+        }
+    }
+
+    /** Hands the lyrics engine the song, and where it is, whenever the poll or a command changes either. */
+    private fun syncLyrics(np: NowPlaying?) {
+        if (np == null) {
+            if (lastTrackId != null) {
+                lastTrackId = null
+                lyricsVm.clearLyrics()
+            }
+            return
+        }
+        if (np.trackId != lastTrackId) {
+            lastTrackId = np.trackId
+            lyricsVm.clearLyrics()
+            if (!np.isPodcast) {
+                lyricsVm.loadLyrics(
+                    artist = np.primaryArtist,
+                    title = np.title,
+                    album = np.album,
+                    durationMs = np.durationMs.toInt(),
+                    mediaSource = "spotify",
+                    trackId = np.trackId,
+                    isrc = np.isrc,
+                )
+            }
+        }
+        val offset = getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE).getInt(Constants.PREF_KEY_LYRICS_OFFSET_MS, 0)
+        // The engine glides between anchors on its own and ignores near-identical ones.
+        lyricsVm.setPlaybackAnchor(np.estimatedProgressMs() + offset, np.isPlaying, 1f)
+    }
+
+    /** Fetch the next few songs' lyrics early so skipping starts with lyrics ready. */
+    private fun prefetchLyrics(items: List<QueueItem>) {
+        for (item in items.take(3)) {
+            if (item.id.isEmpty() || item.title.isEmpty() || item.artist.isEmpty()) continue
+            if (!prefetched.add(item.id)) continue
+            lyricsVm.prefetchQueueTrack(item.artist, item.title, item.album, item.durationMs, item.isrc, item.id)
+        }
+        while (prefetched.size > 30) prefetched.remove(prefetched.first())
+    }
+
+    /** Lyrics text size follows the screen height so it reads from the sofa on any TV. */
+    private fun seedLyricsFontSize() {
+        val dm = resources.displayMetrics
+        val heightDp = minOf(dm.widthPixels, dm.heightPixels) / dm.density
+        val sp = (44f * heightDp / 540f).roundToInt().coerceIn(28, 110)
+        getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE).edit()
+            .putInt(Constants.PREF_KEY_LYRICS_FONT_SIZE, sp)
+            .apply()
+    }
+
+    /** The remote's own media keys work from anywhere in the app. */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        val player = tv.player
+        when (keyCode) {
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> player.playPause()
+            KeyEvent.KEYCODE_MEDIA_PLAY -> player.play()
+            KeyEvent.KEYCODE_MEDIA_PAUSE, KeyEvent.KEYCODE_MEDIA_STOP -> player.pause()
+            KeyEvent.KEYCODE_MEDIA_NEXT -> player.next()
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> player.previous()
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> player.seekBy(Constants.SEEK_STEP_MS)
+            KeyEvent.KEYCODE_MEDIA_REWIND -> player.seekBy(-Constants.SEEK_STEP_MS)
+            else -> return super.onKeyDown(keyCode, event)
+        }
+        return true
+    }
+}

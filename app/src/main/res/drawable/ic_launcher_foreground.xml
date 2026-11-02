@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A play triangle with two lyric lines under it. -->
+    <path android:fillColor="#1DB954" android:pathData="M42,30 L42,62 L68,46 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M34,70 h40 v4 h-40 z" />
+    <path android:fillColor="#99FFFFFF" android:pathData="M40,78 h28 v4 h-28 z" />
+</vector>

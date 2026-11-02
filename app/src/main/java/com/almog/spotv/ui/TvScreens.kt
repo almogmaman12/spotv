@@ -1,0 +1,438 @@
+package com.almog.spotv.ui
+
+import android.graphics.Bitmap
+import android.os.SystemClock
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.almog.spotv.AppStatus
+import com.almog.spotv.Constants
+import com.almog.spotv.TvViewModel
+import com.almog.spotv.lyrics.ui.LyricsView
+import com.almog.spotv.lyrics.viewmodel.LyricsViewModel
+import com.almog.spotv.spotify.NowPlaying
+import com.almog.spotv.spotify.PlayerRepository
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
+import kotlinx.coroutines.delay
+
+private val SpotifyGreen = Color(0xFF1DB954)
+
+@Composable
+fun TvRoot(tv: TvViewModel, lyricsVm: LyricsViewModel) {
+    val loggedIn by tv.loggedIn.collectAsStateWithLifecycle()
+    val playing by tv.player.state.collectAsStateWithLifecycle()
+    val queue by tv.player.queue.collectAsStateWithLifecycle()
+    val connected by tv.player.connected.collectAsStateWithLifecycle()
+    val status by AppStatus.status.collectAsStateWithLifecycle()
+
+    // Keep the last cover until the next one has loaded, so the backdrop never flashes black.
+    var cover by remember { mutableStateOf<Cover?>(null) }
+    val coverUrl = playing?.coverUrl
+    LaunchedEffect(coverUrl) {
+        if (coverUrl != null) CoverLoader.load(coverUrl)?.let { cover = it }
+    }
+
+    val current = playing
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        when {
+            !loggedIn -> LoginScreen(tv)
+            current == null -> IdleScreen(connected)
+            else -> NowPlayingScreen(
+                np = current,
+                upNext = queue.firstOrNull()?.let { if (it.artist.isBlank()) it.title else "${it.title} — ${it.artist}" },
+                cover = cover,
+                lyricsVm = lyricsVm,
+                player = tv.player,
+            )
+        }
+        status?.let { StatusBanner(it, Modifier.align(Alignment.TopCenter)) }
+    }
+}
+
+// ---- now playing ------------------------------------------------------------------------------
+
+@Composable
+private fun NowPlayingScreen(
+    np: NowPlaying,
+    upNext: String?,
+    cover: Cover?,
+    lyricsVm: LyricsViewModel,
+    player: PlayerRepository,
+) {
+    val accent = cover?.accent ?: SpotifyGreen
+
+    // The controls fade out while a song plays and nobody touches the remote.
+    var lastInput by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    var controlsShown by remember { mutableStateOf(true) }
+    LaunchedEffect(lastInput, np.isPlaying) {
+        if (np.isPlaying) {
+            delay(Constants.CONTROLS_HIDE_MS)
+            controlsShown = false
+        } else {
+            controlsShown = true
+        }
+    }
+    val controlsAlpha by androidx.compose.animation.core.animateFloatAsState(
+        if (controlsShown) 1f else 0f, animationSpec = tween(400), label = "controlsAlpha",
+    )
+
+    // Position, redrawn a few times a second.
+    var positionMs by remember { mutableLongStateOf(np.estimatedProgressMs()) }
+    LaunchedEffect(np) {
+        while (true) {
+            positionMs = np.estimatedProgressMs()
+            delay(250)
+        }
+    }
+
+    val playFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try {
+            playFocus.requestFocus()
+        } catch (_: IllegalStateException) {
+            // Not attached yet; the first D-pad press will focus something.
+        }
+    }
+
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                val wasHidden = !controlsShown
+                lastInput = SystemClock.elapsedRealtime()
+                controlsShown = true
+                // The first press on a hidden bar only wakes it, so nothing happens unseen.
+                wasHidden && (event.key == Key.DirectionCenter || event.key == Key.Enter ||
+                    event.key == Key.DirectionLeft || event.key == Key.DirectionRight)
+            }
+    ) {
+        // Everything is sized from the screen height (1.0 = a 540dp-high screen), so it looks the
+        // same on a 1080p and a 4K TV whatever density the box reports.
+        val s = maxHeight.value / 540f
+        fun d(v: Float): Dp = (v * s).dp
+        fun t(v: Float): TextUnit = (v * s).sp
+
+        Backdrop(cover)
+
+        Row(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = d(56f), vertical = d(36f)),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(0.40f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+                CoverArt(cover, d(220f))
+                Spacer(Modifier.height(d(16f)))
+                Text(
+                    np.title,
+                    color = Color.White,
+                    fontSize = t(28f),
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    np.artist,
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = t(20f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(d(14f)))
+
+                Column(Modifier.alpha(controlsAlpha)) {
+                    SeekBar(
+                        fraction = if (np.durationMs > 0) positionMs.toFloat() / np.durationMs else 0f,
+                        accent = accent,
+                        onSeekBy = { player.seekBy(it) },
+                        onActivate = { player.playPause() },
+                        thin = d(5f),
+                        thick = d(10f),
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(formatTime(positionMs), color = Color.White.copy(alpha = 0.7f), fontSize = t(14f))
+                        Text(formatTime(np.durationMs), color = Color.White.copy(alpha = 0.7f), fontSize = t(14f))
+                    }
+                    Spacer(Modifier.height(d(10f)))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TvButton(d(50f), onClick = { player.toggleShuffle() }) { fg ->
+                            drawShuffleIcon(if (np.shuffle) accentOn(fg) else fg)
+                        }
+                        TvButton(d(58f), onClick = { player.previous() }) { fg -> drawPreviousIcon(fg) }
+                        TvButton(d(76f), onClick = { player.playPause() }, focusRequester = playFocus) { fg ->
+                            if (np.isPlaying) drawPauseIcon(fg) else drawPlayIcon(fg)
+                        }
+                        TvButton(d(58f), onClick = { player.next() }) { fg -> drawNextIcon(fg) }
+                        TvButton(d(50f), onClick = { player.cycleRepeat() }) { fg ->
+                            drawRepeatIcon(if (np.repeat != "off") accentOn(fg) else fg, one = np.repeat == "track")
+                        }
+                    }
+                }
+
+                if (upNext != null) {
+                    Spacer(Modifier.height(d(14f)))
+                    Text(
+                        "Up next: $upNext",
+                        color = Color.White.copy(alpha = 0.55f),
+                        fontSize = t(14f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(d(40f)))
+
+            Box(Modifier.weight(0.60f).fillMaxHeight()) {
+                LyricsView(viewModel = lyricsVm, modifier = Modifier.fillMaxSize())
+                NoLyricsHint(lyricsVm, np.isPodcast, t(26f))
+            }
+        }
+
+        // A thin progress line stays at the bottom even when the controls have faded.
+        Box(
+            Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth(if (np.durationMs > 0) (positionMs.toFloat() / np.durationMs).coerceIn(0f, 1f) else 0f)
+                .height(d(3f))
+                .background(accent.copy(alpha = 0.9f))
+        )
+    }
+}
+
+/** Shuffle / repeat when on: the cover's colour would vanish on the white focus ring, so use green. */
+private fun accentOn(@Suppress("UNUSED_PARAMETER") fg: Color): Color = SpotifyGreen
+
+@Composable
+private fun NoLyricsHint(lyricsVm: LyricsViewModel, podcast: Boolean, size: TextUnit) {
+    val ui by lyricsVm.uiState.collectAsStateWithLifecycle()
+    val empty = ui.track == null || ui.track?.lines.isNullOrEmpty()
+    val message = when {
+        podcast -> "Podcast — no lyrics"
+        ui.isLoading -> "Finding lyrics…"
+        empty -> "No lyrics for this song"
+        else -> null
+    }
+    if (message != null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(message, color = Color.White.copy(alpha = 0.45f), fontSize = size, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun Backdrop(cover: Cover?) {
+    Crossfade(targetState = cover, animationSpec = tween(900), label = "backdrop") { c ->
+        Box(Modifier.fillMaxSize()) {
+            if (c != null) {
+                Image(
+                    bitmap = c.blurred,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    filterQuality = FilterQuality.High,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        listOf(
+                            (c?.accent ?: Color(0xFF222222)).copy(alpha = 0.30f),
+                            Color.Black.copy(alpha = 0.80f),
+                        )
+                    )
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun CoverArt(cover: Cover?, size: Dp) {
+    Crossfade(targetState = cover, animationSpec = tween(500), label = "cover") { c ->
+        Box(Modifier.size(size).clip(RoundedCornerShape(size * 0.05f)).background(Color.White.copy(alpha = 0.08f))) {
+            if (c != null) {
+                Image(
+                    bitmap = c.image,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+}
+
+// ---- login and idle ----------------------------------------------------------------------------
+
+@Composable
+private fun LoginScreen(tv: TvViewModel) {
+    val url by tv.pairingUrl.collectAsStateWithLifecycle()
+    val error by tv.pairingError.collectAsStateWithLifecycle()
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF121212))) {
+        val s = maxHeight.value / 540f
+        Row(
+            Modifier.fillMaxSize().padding(horizontal = (80f * s).dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy((64f * s).dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Connect Spotify", color = SpotifyGreen, fontSize = (40f * s).sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height((20f * s).dp))
+                if (!tv.auth.isConfigured) {
+                    Text(
+                        "This build has no Spotify client ID. Add SPOTIFY_CLIENT_ID to local.properties and rebuild.",
+                        color = Color.White, fontSize = (24f * s).sp,
+                    )
+                } else {
+                    Step("1", "Connect your phone to the same Wi‑Fi as this TV", s)
+                    Step("2", "Scan the code with your phone camera", s)
+                    Step("3", "Log in to Spotify and tap Agree", s)
+                    Spacer(Modifier.height((16f * s).dp))
+                    Text(
+                        text = error ?: url?.let { "or open $it" } ?: "Waiting for the network…",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = (18f * s).sp,
+                    )
+                }
+            }
+            val link = url
+            if (link != null && tv.auth.isConfigured) {
+                Box(
+                    Modifier.size((300f * s).dp).clip(RoundedCornerShape((16f * s).dp)).background(Color.White).padding((14f * s).dp),
+                ) {
+                    val qr = remember(link) { qrBitmap(link, 512) }
+                    Image(
+                        bitmap = qr,
+                        contentDescription = "Login QR code",
+                        filterQuality = FilterQuality.None,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Step(number: String, text: String, s: Float) {
+    Row(Modifier.padding(vertical = (6f * s).dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size((40f * s).dp).clip(RoundedCornerShape(50)).background(SpotifyGreen),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(number, color = Color.Black, fontSize = (22f * s).sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width((16f * s).dp))
+        Text(text, color = Color.White, fontSize = (24f * s).sp)
+    }
+}
+
+@Composable
+private fun IdleScreen(connected: Boolean) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF121212)), contentAlignment = Alignment.Center) {
+        val s = maxHeight.value / 540f
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = (80f * s).dp)) {
+            Text(
+                if (connected) "Nothing is playing" else "Connecting to Spotify…",
+                color = Color.White, fontSize = (40f * s).sp, fontWeight = FontWeight.Bold,
+            )
+            if (connected) {
+                Spacer(Modifier.height((12f * s).dp))
+                Text(
+                    "Start a song in Spotify on your phone or this TV and it will show up here.",
+                    color = Color.White.copy(alpha = 0.6f), fontSize = (22f * s).sp, textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusBanner(status: AppStatus.Status, modifier: Modifier) {
+    val color = when (status.severity) {
+        AppStatus.ERROR -> Color(0xFFB3261E)
+        AppStatus.WARN -> Color(0xFF8A6D00)
+        else -> Color(0xFF333333)
+    }
+    Box(
+        modifier
+            .padding(top = 20.dp)
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.92f))
+            .padding(horizontal = 24.dp, vertical = 10.dp)
+    ) {
+        Text(status.message, color = Color.White, fontSize = 18.sp)
+    }
+}
+
+// ---- helpers -----------------------------------------------------------------------------------
+
+private fun formatTime(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(total / 60, total % 60)
+}
+
+private fun qrBitmap(text: String, px: Int): ImageBitmap {
+    val hints = mapOf<EncodeHintType, Any>(EncodeHintType.MARGIN to 0)
+    val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, px, px, hints)
+    val pixels = IntArray(px * px)
+    val black = 0xFF000000.toInt()
+    val white = 0xFFFFFFFF.toInt()
+    for (y in 0 until px) for (x in 0 until px) pixels[y * px + x] = if (matrix.get(x, y)) black else white
+    return Bitmap.createBitmap(pixels, px, px, Bitmap.Config.ARGB_8888).asImageBitmap()
+}
