@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.palette.graphics.Palette
+import com.almog.spotv.lyrics.mobile.canvas.StackBlur
 import com.almog.spotv.spotify.TvHttp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,8 +42,8 @@ object CoverLoader {
             if (bitmap == null) {
                 null
             } else {
-                // Scaling a 32px copy back up with filtering is a cheap blur that works on every TV GPU.
-                val small = Bitmap.createScaledBitmap(bitmap, 32, 32, true)
+                // A small copy, box-blurred, then scaled up smoothly: a soft backdrop on every TV GPU.
+                val small = StackBlur.blur(Bitmap.createScaledBitmap(bitmap, 96, 96, true), 7, 3)
                 val palette = Palette.from(bitmap).maximumColorCount(16).generate()
                 val fallback = 0xFF1DB954.toInt()
                 val accent = palette.getVibrantColor(palette.getMutedColor(palette.getDominantColor(fallback)))

@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -45,6 +46,9 @@ fun TvButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    /** The main button (play / pause): solid white, with a coloured ring when focused. */
+    primary: Boolean = false,
+    ringColor: Color = Color(0xFF1DB954),
     icon: DrawScope.(Color) -> Unit,
 ) {
     val source = remember { MutableInteractionSource() }
@@ -58,12 +62,18 @@ fun TvButton(
                 scaleX = scale
                 scaleY = scale
             }
+            .then(if (focused) Modifier.border(size * 0.06f, ringColor, CircleShape) else Modifier)
             .clip(CircleShape)
-            .background(if (focused) Color.White else Color.White.copy(alpha = 0.14f))
+            .background(
+                when {
+                    primary || focused -> Color.White
+                    else -> Color.White.copy(alpha = 0.14f)
+                }
+            )
             .clickable(interactionSource = source, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(size * 0.46f)) { icon(if (focused) Color.Black else Color.White) }
+        Canvas(Modifier.size(size * 0.46f)) { icon(if (primary || focused) Color.Black else Color.White) }
     }
 }
 

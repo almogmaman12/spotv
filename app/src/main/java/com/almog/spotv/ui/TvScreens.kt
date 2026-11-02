@@ -5,7 +5,9 @@ import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
@@ -35,7 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -70,6 +78,14 @@ private val SpotifyGreen = Color(0xFF1DB954)
 
 @Composable
 fun TvRoot(tv: TvViewModel, lyricsVm: LyricsViewModel) {
+    // The TV layout never mirrors, whatever the device language (lyrics lines handle their own direction).
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        TvRootContent(tv, lyricsVm)
+    }
+}
+
+@Composable
+private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
     val loggedIn by tv.loggedIn.collectAsStateWithLifecycle()
     val playing by tv.player.state.collectAsStateWithLifecycle()
     val queue by tv.player.queue.collectAsStateWithLifecycle()
@@ -119,6 +135,7 @@ fun TvRoot(tv: TvViewModel, lyricsVm: LyricsViewModel) {
 
 // ---- now playing ------------------------------------------------------------------------------
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NowPlayingScreen(
     np: NowPlaying,
@@ -191,28 +208,40 @@ private fun NowPlayingScreen(
         Row(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = d(56f), vertical = d(36f)),
+                .padding(horizontal = d(64f), vertical = d(40f)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(0.40f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                CoverArt(cover, d(220f))
-                Spacer(Modifier.height(d(16f)))
+                CoverArt(cover, d(250f))
+                Spacer(Modifier.height(d(20f)))
                 Text(
                     np.title,
                     color = Color.White,
-                    fontSize = t(28f),
+                    fontSize = t(30f),
                     fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.fillMaxWidth().basicMarquee(initialDelayMillis = 2000, velocity = 40.dp),
                 )
+                Spacer(Modifier.height(d(2f)))
                 Text(
                     np.artist,
-                    color = Color.White.copy(alpha = 0.75f),
+                    color = Color.White.copy(alpha = 0.78f),
                     fontSize = t(20f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(d(14f)))
+                if (np.deviceName != null) {
+                    Spacer(Modifier.height(d(4f)))
+                    Text(
+                        "Playing on ${np.deviceName}",
+                        color = accent.copy(alpha = 0.95f),
+                        fontSize = t(13f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(d(18f)))
 
                 Column(Modifier.alpha(controlsAlpha)) {
                     SeekBar(
@@ -237,7 +266,7 @@ private fun NowPlayingScreen(
                             drawShuffleIcon(if (np.shuffle) accentOn(fg) else fg)
                         }
                         TvButton(d(50f), onClick = { player.previous() }) { fg -> drawPreviousIcon(fg) }
-                        TvButton(d(66f), onClick = { player.playPause() }, focusRequester = playFocus) { fg ->
+                        TvButton(d(66f), onClick = { player.playPause() }, focusRequester = playFocus, primary = true, ringColor = accent) { fg ->
                             if (np.isPlaying) drawPauseIcon(fg) else drawPlayIcon(fg)
                         }
                         TvButton(d(50f), onClick = { player.next() }) { fg -> drawNextIcon(fg) }
@@ -260,7 +289,7 @@ private fun NowPlayingScreen(
                 }
             }
 
-            Spacer(Modifier.width(d(40f)))
+            Spacer(Modifier.width(d(48f)))
 
             Box(Modifier.weight(0.60f).fillMaxHeight()) {
                 // Re-created when a setting changes, so size / font / translation apply at once.
@@ -304,24 +333,35 @@ private fun NoLyricsHint(lyricsVm: LyricsViewModel, podcast: Boolean, size: Text
 
 @Composable
 private fun Backdrop(cover: Cover?) {
-    Crossfade(targetState = cover, animationSpec = tween(900), label = "backdrop") { c ->
+    // Slightly more saturated than the cover, so the backdrop has colour instead of grey mush.
+    val vivid = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(1.35f) }) }
+    Crossfade(targetState = cover, animationSpec = tween(1000), label = "backdrop") { c ->
         Box(Modifier.fillMaxSize()) {
             if (c != null) {
                 Image(
                     bitmap = c.blurred,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    filterQuality = FilterQuality.High,
+                    filterQuality = FilterQuality.Medium,
+                    colorFilter = vivid,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
+            // Darken for legibility: from the top (tinted by the cover) to the bottom, and behind the text on the left.
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(
                         listOf(
-                            (c?.accent ?: Color(0xFF222222)).copy(alpha = 0.30f),
-                            Color.Black.copy(alpha = 0.80f),
+                            (c?.accent ?: Color(0xFF222222)).copy(alpha = 0.18f),
+                            Color.Black.copy(alpha = 0.70f),
                         )
+                    )
+                )
+            )
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.horizontalGradient(
+                        listOf(Color.Black.copy(alpha = 0.40f), Color.Transparent),
                     )
                 )
             )
@@ -332,7 +372,13 @@ private fun Backdrop(cover: Cover?) {
 @Composable
 private fun CoverArt(cover: Cover?, size: Dp) {
     Crossfade(targetState = cover, animationSpec = tween(500), label = "cover") { c ->
-        Box(Modifier.size(size).clip(RoundedCornerShape(size * 0.05f)).background(Color.White.copy(alpha = 0.08f))) {
+        Box(
+            Modifier
+                .size(size)
+                .shadow(size * 0.12f, RoundedCornerShape(size * 0.04f), clip = false)
+                .clip(RoundedCornerShape(size * 0.04f))
+                .background(Color.White.copy(alpha = 0.08f))
+        ) {
             if (c != null) {
                 Image(
                     bitmap = c.image,
