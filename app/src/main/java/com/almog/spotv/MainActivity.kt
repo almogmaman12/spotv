@@ -107,13 +107,17 @@ class MainActivity : ComponentActivity() {
         while (prefetched.size > 30) prefetched.remove(prefetched.first())
     }
 
-    /** Lyrics text size follows the screen height (so it reads from the sofa on any TV), times the size setting. */
+    /**
+     * Lyrics size setting for the engine, which already sizes its text from the view width (up to 56sp)
+     * and multiplies by this value / 32. 27 at a 540dp-high screen gives ~48sp lines, about 1/11 of the
+     * screen height; it follows the screen height, times the size setting.
+     */
     private fun seedLyricsFontSize() {
         val dm = resources.displayMetrics
         val heightDp = minOf(dm.widthPixels, dm.heightPixels) / dm.density
         val percent = getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE)
             .getInt(Constants.PREF_KEY_LYRICS_SIZE_PERCENT, 100).coerceIn(50, 200)
-        val sp = (48f * heightDp / 540f * percent / 100f).roundToInt().coerceIn(14, 200)
+        val sp = (27f * heightDp / 540f * percent / 100f).roundToInt().coerceIn(8, 120)
         getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE).edit()
             .putInt(Constants.PREF_KEY_LYRICS_FONT_SIZE, sp)
             .apply()

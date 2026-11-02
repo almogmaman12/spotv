@@ -212,7 +212,7 @@ private fun NowPlayingScreen(
         Box(
             Modifier
                 .fillMaxSize()
-                .padding(start = d(72f), end = d(72f), top = d(104f), bottom = d(28f))
+                .padding(start = d(40f), end = d(40f), top = d(104f), bottom = d(28f))
         ) {
             // Re-created when a setting changes, so size / font / translation apply at once.
             key(settingsVersion) {
@@ -237,7 +237,7 @@ private fun NowPlayingScreen(
             Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(horizontal = d(72f), vertical = d(28f)),
+                .padding(horizontal = d(84f), vertical = d(28f)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CoverArt(cover, d(80f))
