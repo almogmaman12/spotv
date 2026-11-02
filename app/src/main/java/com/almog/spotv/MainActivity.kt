@@ -50,6 +50,13 @@ class MainActivity : ComponentActivity() {
                 }
                 launch { tv.player.state.collect { syncLyrics(it) } }
                 launch { tv.player.queue.collect { prefetchLyrics(it) } }
+                // A setting changed: re-read the size and timing and re-sync the lyrics.
+                launch {
+                    tv.settingsVersion.collect {
+                        seedLyricsFontSize()
+                        syncLyrics(tv.player.state.value)
+                    }
+                }
             }
         }
     }
@@ -100,11 +107,13 @@ class MainActivity : ComponentActivity() {
         while (prefetched.size > 30) prefetched.remove(prefetched.first())
     }
 
-    /** Lyrics text size follows the screen height so it reads from the sofa on any TV. */
+    /** Lyrics text size follows the screen height (so it reads from the sofa on any TV), times the size setting. */
     private fun seedLyricsFontSize() {
         val dm = resources.displayMetrics
         val heightDp = minOf(dm.widthPixels, dm.heightPixels) / dm.density
-        val sp = (44f * heightDp / 540f).roundToInt().coerceIn(28, 110)
+        val percent = getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE)
+            .getInt(Constants.PREF_KEY_LYRICS_SIZE_PERCENT, 100).coerceIn(50, 200)
+        val sp = (44f * heightDp / 540f * percent / 100f).roundToInt().coerceIn(14, 200)
         getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE).edit()
             .putInt(Constants.PREF_KEY_LYRICS_FONT_SIZE, sp)
             .apply()
@@ -114,6 +123,7 @@ class MainActivity : ComponentActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val player = tv.player
         when (keyCode) {
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> tv.toggleSettings()
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> player.playPause()
             KeyEvent.KEYCODE_MEDIA_PLAY -> player.play()
             KeyEvent.KEYCODE_MEDIA_PAUSE, KeyEvent.KEYCODE_MEDIA_STOP -> player.pause()

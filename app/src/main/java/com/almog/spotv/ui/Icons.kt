@@ -8,6 +8,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 // Control icons drawn by hand so the app needs no icon library. Each fills the DrawScope's square.
 
@@ -73,5 +76,22 @@ fun DrawScope.drawRepeatIcon(c: Color, one: Boolean) {
     if (one) {
         drawLine(c, Offset(w * 0.5f, h * 0.38f), Offset(w * 0.5f, h * 0.62f), w * 0.08f, StrokeCap.Round)
         drawLine(c, Offset(w * 0.43f, h * 0.43f), Offset(w * 0.5f, h * 0.38f), w * 0.07f, StrokeCap.Round)
+    }
+}
+
+fun DrawScope.drawGearIcon(c: Color) {
+    val w = size.width
+    val center = Offset(w / 2f, size.height / 2f)
+    drawCircle(c, radius = w * 0.22f, center = center, style = Stroke(width = w * 0.1f))
+    for (i in 0 until 8) {
+        val a = i * PI / 4
+        val dx = cos(a).toFloat()
+        val dy = sin(a).toFloat()
+        drawLine(
+            c,
+            Offset(center.x + dx * w * 0.32f, center.y + dy * w * 0.32f),
+            Offset(center.x + dx * w * 0.46f, center.y + dy * w * 0.46f),
+            w * 0.13f,
+        )
     }
 }

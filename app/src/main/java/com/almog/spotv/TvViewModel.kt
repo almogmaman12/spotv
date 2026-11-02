@@ -48,8 +48,24 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val _settingsOpen = MutableStateFlow(false)
+
+    /** Whether the settings panel is showing. */
+    val settingsOpen: StateFlow<Boolean> = _settingsOpen
+
+    private val _settingsVersion = MutableStateFlow(0)
+
+    /** Goes up by one whenever a setting changes, so the screen and lyrics engine re-read them. */
+    val settingsVersion: StateFlow<Int> = _settingsVersion
+
+    fun openSettings() { _settingsOpen.value = true }
+    fun closeSettings() { _settingsOpen.value = false }
+    fun toggleSettings() { _settingsOpen.value = !_settingsOpen.value }
+    fun settingsChanged() { _settingsVersion.value = _settingsVersion.value + 1 }
+
     fun logout() {
         auth.logout()
+        _settingsOpen.value = false
         _loggedIn.value = false
     }
 }

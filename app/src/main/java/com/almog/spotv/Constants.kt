@@ -8,6 +8,9 @@ object Constants {
     /** Active lyric font size in sp; the lyrics engine scales its own sizes by value / 32. */
     const val PREF_KEY_LYRICS_FONT_SIZE = "lyrics_font_size_sp"
 
+    /** Lyrics size as a percentage of the size that fits the screen (50-200). Set in the settings panel. */
+    const val PREF_KEY_LYRICS_SIZE_PERCENT = "lyrics_size_percent"
+
     /** Shifts lyrics against the audio (ms). Positive shows lyrics earlier. Handy for TVs with audio delay. */
     const val PREF_KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
 

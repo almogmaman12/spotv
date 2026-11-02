@@ -2,6 +2,7 @@ package com.almog.spotv.ui
 
 import android.graphics.Bitmap
 import android.os.SystemClock
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +75,8 @@ fun TvRoot(tv: TvViewModel, lyricsVm: LyricsViewModel) {
     val queue by tv.player.queue.collectAsStateWithLifecycle()
     val connected by tv.player.connected.collectAsStateWithLifecycle()
     val status by AppStatus.status.collectAsStateWithLifecycle()
+    val settingsOpen by tv.settingsOpen.collectAsStateWithLifecycle()
+    val settingsVersion by tv.settingsVersion.collectAsStateWithLifecycle()
 
     // Keep the last cover until the next one has loaded, so the backdrop never flashes black.
     var cover by remember { mutableStateOf<Cover?>(null) }
@@ -81,17 +85,32 @@ fun TvRoot(tv: TvViewModel, lyricsVm: LyricsViewModel) {
         if (coverUrl != null) CoverLoader.load(coverUrl)?.let { cover = it }
     }
 
+    // Back closes the settings first.
+    BackHandler(enabled = settingsOpen && loggedIn) { tv.closeSettings() }
+
     val current = playing
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
         when {
             !loggedIn -> LoginScreen(tv)
-            current == null -> IdleScreen(connected)
+            current == null -> IdleScreen(connected, onOpenSettings = { tv.openSettings() })
             else -> NowPlayingScreen(
                 np = current,
                 upNext = queue.firstOrNull()?.let { if (it.artist.isBlank()) it.title else "${it.title} — ${it.artist}" },
                 cover = cover,
                 lyricsVm = lyricsVm,
                 player = tv.player,
+                settingsOpen = settingsOpen,
+                settingsVersion = settingsVersion,
+                onOpenSettings = { tv.openSettings() },
+            )
+        }
+        if (settingsOpen && loggedIn) {
+            // A panel over the right-hand side, so lyric changes show live beside it.
+            SettingsPanel(
+                screenHeightDp = maxHeight.value,
+                onChanged = { tv.settingsChanged() },
+                onLogout = { tv.logout() },
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.55f),
             )
         }
         status?.let { StatusBanner(it, Modifier.align(Alignment.TopCenter)) }
@@ -107,6 +126,9 @@ private fun NowPlayingScreen(
     cover: Cover?,
     lyricsVm: LyricsViewModel,
     player: PlayerRepository,
+    settingsOpen: Boolean,
+    settingsVersion: Int,
+    onOpenSettings: () -> Unit,
 ) {
     val accent = cover?.accent ?: SpotifyGreen
 
@@ -135,7 +157,9 @@ private fun NowPlayingScreen(
     }
 
     val playFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
+    // On start, and again when the settings panel closes, focus goes to play / pause.
+    LaunchedEffect(settingsOpen) {
+        if (settingsOpen) return@LaunchedEffect
         try {
             playFocus.requestFocus()
         } catch (_: IllegalStateException) {
@@ -209,17 +233,18 @@ private fun NowPlayingScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TvButton(d(50f), onClick = { player.toggleShuffle() }) { fg ->
+                        TvButton(d(42f), onClick = { player.toggleShuffle() }) { fg ->
                             drawShuffleIcon(if (np.shuffle) accentOn(fg) else fg)
                         }
-                        TvButton(d(58f), onClick = { player.previous() }) { fg -> drawPreviousIcon(fg) }
-                        TvButton(d(76f), onClick = { player.playPause() }, focusRequester = playFocus) { fg ->
+                        TvButton(d(50f), onClick = { player.previous() }) { fg -> drawPreviousIcon(fg) }
+                        TvButton(d(66f), onClick = { player.playPause() }, focusRequester = playFocus) { fg ->
                             if (np.isPlaying) drawPauseIcon(fg) else drawPlayIcon(fg)
                         }
-                        TvButton(d(58f), onClick = { player.next() }) { fg -> drawNextIcon(fg) }
-                        TvButton(d(50f), onClick = { player.cycleRepeat() }) { fg ->
+                        TvButton(d(50f), onClick = { player.next() }) { fg -> drawNextIcon(fg) }
+                        TvButton(d(42f), onClick = { player.cycleRepeat() }) { fg ->
                             drawRepeatIcon(if (np.repeat != "off") accentOn(fg) else fg, one = np.repeat == "track")
                         }
+                        TvButton(d(38f), onClick = onOpenSettings) { fg -> drawGearIcon(fg) }
                     }
                 }
 
@@ -238,7 +263,10 @@ private fun NowPlayingScreen(
             Spacer(Modifier.width(d(40f)))
 
             Box(Modifier.weight(0.60f).fillMaxHeight()) {
-                LyricsView(viewModel = lyricsVm, modifier = Modifier.fillMaxSize())
+                // Re-created when a setting changes, so size / font / translation apply at once.
+                key(settingsVersion) {
+                    LyricsView(viewModel = lyricsVm, modifier = Modifier.fillMaxSize())
+                }
                 NoLyricsHint(lyricsVm, np.isPodcast, t(26f))
             }
         }
@@ -383,7 +411,7 @@ private fun Step(number: String, text: String, s: Float) {
 }
 
 @Composable
-private fun IdleScreen(connected: Boolean) {
+private fun IdleScreen(connected: Boolean, onOpenSettings: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF121212)), contentAlignment = Alignment.Center) {
         val s = maxHeight.value / 540f
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = (80f * s).dp)) {
@@ -397,6 +425,15 @@ private fun IdleScreen(connected: Boolean) {
                     "Start a song in Spotify on your phone or this TV and it will show up here.",
                     color = Color.White.copy(alpha = 0.6f), fontSize = (22f * s).sp, textAlign = TextAlign.Center,
                 )
+                Spacer(Modifier.height((28f * s).dp))
+                val focus = remember { FocusRequester() }
+                LaunchedEffect(Unit) {
+                    try {
+                        focus.requestFocus()
+                    } catch (_: IllegalStateException) {
+                    }
+                }
+                TvButton((56f * s).dp, onClick = onOpenSettings, focusRequester = focus) { fg -> drawGearIcon(fg) }
             }
         }
     }
