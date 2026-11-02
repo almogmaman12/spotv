@@ -1,5 +1,6 @@
 # Copy to local.properties and fill in. local.properties is gitignored.
-sdk.dir=/path/to/your/Android/Sdk
+# If local.properties already exists, just add the keys below to it.
+# Don't add sdk.dir here: Android Studio writes the right one into local.properties by itself.
 
 # https://developer.spotify.com/dashboard  (no client secret needed: login uses PKCE)
 SPOTIFY_CLIENT_ID=your_spotify_client_id_here
