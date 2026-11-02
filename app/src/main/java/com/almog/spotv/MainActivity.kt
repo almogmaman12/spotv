@@ -113,7 +113,7 @@ class MainActivity : ComponentActivity() {
         val heightDp = minOf(dm.widthPixels, dm.heightPixels) / dm.density
         val percent = getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE)
             .getInt(Constants.PREF_KEY_LYRICS_SIZE_PERCENT, 100).coerceIn(50, 200)
-        val sp = (44f * heightDp / 540f * percent / 100f).roundToInt().coerceIn(14, 200)
+        val sp = (48f * heightDp / 540f * percent / 100f).roundToInt().coerceIn(14, 200)
         getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE).edit()
             .putInt(Constants.PREF_KEY_LYRICS_FONT_SIZE, sp)
             .apply()

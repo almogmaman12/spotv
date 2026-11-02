@@ -31,5 +31,5 @@ object Constants {
     const val POLL_PAUSED_MS = 6_000L
     const val POLL_IDLE_MS = 8_000L
     const val SEEK_STEP_MS = 10_000L
-    const val CONTROLS_HIDE_MS = 8_000L
+    const val CONTROLS_HIDE_MS = 6_000L
 }

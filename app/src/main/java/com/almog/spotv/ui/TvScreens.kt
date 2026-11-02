@@ -5,6 +5,7 @@ import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -149,19 +151,20 @@ private fun NowPlayingScreen(
 ) {
     val accent = cover?.accent ?: SpotifyGreen
 
-    // The controls fade out while a song plays and nobody touches the remote.
+    // The controls stay hidden until a remote button is pressed, then slide up and hide again.
     var lastInput by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
-    var controlsShown by remember { mutableStateOf(true) }
-    LaunchedEffect(lastInput, np.isPlaying) {
-        if (np.isPlaying) {
+    var controlsShown by remember { mutableStateOf(false) }
+    LaunchedEffect(lastInput, controlsShown) {
+        if (controlsShown) {
             delay(Constants.CONTROLS_HIDE_MS)
             controlsShown = false
-        } else {
-            controlsShown = true
         }
     }
-    val controlsAlpha by androidx.compose.animation.core.animateFloatAsState(
-        if (controlsShown) 1f else 0f, animationSpec = tween(400), label = "controlsAlpha",
+    LaunchedEffect(settingsOpen) {
+        if (settingsOpen) controlsShown = false
+    }
+    val reveal by androidx.compose.animation.core.animateFloatAsState(
+        if (controlsShown) 1f else 0f, animationSpec = tween(350), label = "controlsReveal",
     )
 
     // Position, redrawn a few times a second.
@@ -173,8 +176,8 @@ private fun NowPlayingScreen(
         }
     }
 
+    // The play button holds focus even while hidden, so the remote always reaches the controls.
     val playFocus = remember { FocusRequester() }
-    // On start, and again when the settings panel closes, focus goes to play / pause.
     LaunchedEffect(settingsOpen) {
         if (settingsOpen) return@LaunchedEffect
         try {
@@ -192,7 +195,7 @@ private fun NowPlayingScreen(
                 val wasHidden = !controlsShown
                 lastInput = SystemClock.elapsedRealtime()
                 controlsShown = true
-                // The first press on a hidden bar only wakes it, so nothing happens unseen.
+                // The first press on hidden controls only brings them up, so nothing happens unseen.
                 wasHidden && (event.key == Key.DirectionCenter || event.key == Key.Enter ||
                     event.key == Key.DirectionLeft || event.key == Key.DirectionRight)
             }
@@ -205,109 +208,136 @@ private fun NowPlayingScreen(
 
         Backdrop(cover)
 
-        Row(
+        // Lyrics fill the screen, leaving room for the title at the top.
+        Box(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = d(64f), vertical = d(40f)),
+                .padding(start = d(72f), end = d(72f), top = d(104f), bottom = d(28f))
+        ) {
+            // Re-created when a setting changes, so size / font / translation apply at once.
+            key(settingsVersion) {
+                LyricsView(viewModel = lyricsVm, modifier = Modifier.fillMaxSize())
+            }
+            NoLyricsHint(lyricsVm, np.isPodcast, t(26f))
+        }
+
+        // Title bar: lyrics fade out underneath it.
+        Box(
+            Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .height(d(150f))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Black.copy(alpha = 0.75f), Color.Black.copy(alpha = 0.45f), Color.Transparent)
+                    )
+                )
+        )
+        Row(
+            Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .padding(horizontal = d(72f), vertical = d(28f)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(0.40f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                CoverArt(cover, d(250f))
-                Spacer(Modifier.height(d(20f)))
+            CoverArt(cover, d(80f))
+            Spacer(Modifier.width(d(20f)))
+            Column(Modifier.weight(1f)) {
                 Text(
                     np.title,
                     color = Color.White,
-                    fontSize = t(30f),
+                    fontSize = t(28f),
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     softWrap = false,
                     modifier = Modifier.fillMaxWidth().basicMarquee(initialDelayMillis = 2000, velocity = 40.dp),
                 )
-                Spacer(Modifier.height(d(2f)))
                 Text(
                     np.artist,
                     color = Color.White.copy(alpha = 0.78f),
-                    fontSize = t(20f),
+                    fontSize = t(19f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (np.deviceName != null) {
-                    Spacer(Modifier.height(d(4f)))
-                    Text(
-                        "Playing on ${np.deviceName}",
-                        color = accent.copy(alpha = 0.95f),
-                        fontSize = t(13f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(d(18f)))
-
-                Column(Modifier.alpha(controlsAlpha)) {
-                    SeekBar(
-                        fraction = if (np.durationMs > 0) positionMs.toFloat() / np.durationMs else 0f,
-                        accent = accent,
-                        onSeekBy = { player.seekBy(it) },
-                        onActivate = { player.playPause() },
-                        thin = d(5f),
-                        thick = d(10f),
-                    )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(formatTime(positionMs), color = Color.White.copy(alpha = 0.7f), fontSize = t(14f))
-                        Text(formatTime(np.durationMs), color = Color.White.copy(alpha = 0.7f), fontSize = t(14f))
-                    }
-                    Spacer(Modifier.height(d(10f)))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TvButton(d(42f), onClick = { player.toggleShuffle() }) { fg ->
-                            drawShuffleIcon(if (np.shuffle) accentOn(fg) else fg)
-                        }
-                        TvButton(d(50f), onClick = { player.previous() }) { fg -> drawPreviousIcon(fg) }
-                        TvButton(d(66f), onClick = { player.playPause() }, focusRequester = playFocus, primary = true, ringColor = accent) { fg ->
-                            if (np.isPlaying) drawPauseIcon(fg) else drawPlayIcon(fg)
-                        }
-                        TvButton(d(50f), onClick = { player.next() }) { fg -> drawNextIcon(fg) }
-                        TvButton(d(42f), onClick = { player.cycleRepeat() }) { fg ->
-                            drawRepeatIcon(if (np.repeat != "off") accentOn(fg) else fg, one = np.repeat == "track")
-                        }
-                        TvButton(d(38f), onClick = onOpenSettings) { fg -> drawGearIcon(fg) }
-                    }
-                }
-
-                if (upNext != null) {
-                    Spacer(Modifier.height(d(14f)))
-                    Text(
-                        "Up next: $upNext",
-                        color = Color.White.copy(alpha = 0.55f),
-                        fontSize = t(14f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
             }
-
-            Spacer(Modifier.width(d(48f)))
-
-            Box(Modifier.weight(0.60f).fillMaxHeight()) {
-                // Re-created when a setting changes, so size / font / translation apply at once.
-                key(settingsVersion) {
-                    LyricsView(viewModel = lyricsVm, modifier = Modifier.fillMaxSize())
-                }
-                NoLyricsHint(lyricsVm, np.isPodcast, t(26f))
+            if (!np.isPlaying) {
+                // Shown even when the controls are hidden, so a paused song is obvious.
+                Spacer(Modifier.width(d(20f)))
+                Canvas(Modifier.size(d(30f))) { drawPauseIcon(Color.White.copy(alpha = 0.85f)) }
             }
         }
 
-        // A thin progress line stays at the bottom even when the controls have faded.
+        // A thin progress line stays at the bottom while the controls are hidden.
         Box(
             Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth(if (np.durationMs > 0) (positionMs.toFloat() / np.durationMs).coerceIn(0f, 1f) else 0f)
                 .height(d(3f))
+                .alpha(1f - reveal)
                 .background(accent.copy(alpha = 0.9f))
         )
+
+        // Controls: slide up from the bottom over everything, on a see-through dark band.
+        Column(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .graphicsLayer {
+                    translationY = (1f - reveal) * size.height * 0.5f
+                    alpha = reveal
+                }
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f), Color.Black.copy(alpha = 0.62f))
+                    )
+                )
+                .padding(start = d(72f), end = d(72f), top = d(48f), bottom = d(30f)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (upNext != null) {
+                Text(
+                    "Up next: $upNext",
+                    color = Color.White.copy(alpha = 0.65f),
+                    fontSize = t(15f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(d(8f)))
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(formatTime(positionMs), color = Color.White.copy(alpha = 0.8f), fontSize = t(15f))
+                Spacer(Modifier.width(d(14f)))
+                SeekBar(
+                    fraction = if (np.durationMs > 0) positionMs.toFloat() / np.durationMs else 0f,
+                    accent = accent,
+                    onSeekBy = { player.seekBy(it) },
+                    onActivate = { player.playPause() },
+                    modifier = Modifier.weight(1f),
+                    thin = d(5f),
+                    thick = d(10f),
+                )
+                Spacer(Modifier.width(d(14f)))
+                Text(formatTime(np.durationMs), color = Color.White.copy(alpha = 0.8f), fontSize = t(15f))
+            }
+            Spacer(Modifier.height(d(10f)))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(d(26f)),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TvButton(d(50f), onClick = { player.toggleShuffle() }) { fg ->
+                    drawShuffleIcon(if (np.shuffle) accentOn(fg) else fg)
+                }
+                TvButton(d(58f), onClick = { player.previous() }) { fg -> drawPreviousIcon(fg) }
+                TvButton(d(76f), onClick = { player.playPause() }, focusRequester = playFocus, primary = true, ringColor = accent) { fg ->
+                    if (np.isPlaying) drawPauseIcon(fg) else drawPlayIcon(fg)
+                }
+                TvButton(d(58f), onClick = { player.next() }) { fg -> drawNextIcon(fg) }
+                TvButton(d(50f), onClick = { player.cycleRepeat() }) { fg ->
+                    drawRepeatIcon(if (np.repeat != "off") accentOn(fg) else fg, one = np.repeat == "track")
+                }
+                TvButton(d(44f), onClick = onOpenSettings) { fg -> drawGearIcon(fg) }
+            }
+        }
     }
 }
 
