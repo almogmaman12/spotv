@@ -228,7 +228,7 @@ fun MobileLyricsContent(
                 modifier = Modifier.fillMaxSize(),
                 lyricsType = shown.type,
                 isPlaying = anchor.isPlaying,
-                focusAnchorFraction = 0.4f,
+                focusAnchorFraction = 0.5f,
                 fontSizeScale = fontScale,
                 romanize = romanize,
                 translation = presentation

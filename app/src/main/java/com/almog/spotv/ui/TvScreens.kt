@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -225,49 +226,41 @@ private fun NowPlayingScreen(
             NoLyricsHint(lyricsVm, np.isPodcast, t(26f))
         }
 
-        // Title bar: lyrics fade out underneath it.
-        Box(
-            Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth()
-                .height(d(150f))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Black.copy(alpha = 0.50f), Color.Black.copy(alpha = 0.25f), Color.Transparent)
-                    )
-                )
-        )
+        // Title card: a small see-through dark box, so the lyrics behind it stay calm.
         Row(
             Modifier
                 .align(Alignment.TopStart)
-                .fillMaxWidth()
-                .padding(horizontal = d(48f), vertical = d(28f)),
+                .padding(start = d(48f), top = d(26f))
+                .widthIn(max = maxWidth * 0.5f)
+                .clip(RoundedCornerShape(d(16f)))
+                .background(Color.Black.copy(alpha = 0.55f))
+                .padding(d(10f)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CoverArt(cover, d(80f))
-            Spacer(Modifier.width(d(20f)))
-            Column(Modifier.weight(1f)) {
+            CoverArt(cover, d(64f))
+            Spacer(Modifier.width(d(16f)))
+            Column(Modifier.weight(1f, fill = false)) {
                 Text(
                     np.title,
                     color = Color.White,
-                    fontSize = t(28f),
+                    fontSize = t(24f),
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     softWrap = false,
-                    modifier = Modifier.fillMaxWidth().basicMarquee(initialDelayMillis = 2000, velocity = 40.dp),
+                    modifier = Modifier.basicMarquee(initialDelayMillis = 2000, velocity = 40.dp),
                 )
                 Text(
                     np.artist,
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = t(19f),
+                    color = Color.White.copy(alpha = 0.75f),
+                    fontSize = t(16f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             if (!np.isPlaying) {
                 // Shown even when the controls are hidden, so a paused song is obvious.
-                Spacer(Modifier.width(d(20f)))
-                Canvas(Modifier.size(d(30f))) { drawPauseIcon(Color.White.copy(alpha = 0.85f)) }
+                Spacer(Modifier.width(d(16f)))
+                Canvas(Modifier.size(d(26f))) { drawPauseIcon(Color.White.copy(alpha = 0.85f)) }
             }
         }
 
