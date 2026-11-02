@@ -160,32 +160,32 @@ internal fun LyricsAttributionBadge(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         Text(
             text = "Lyrics from ${attr.provider}",
-            color = Color.White.copy(alpha = 0.45f),
-            fontSize = 11.sp,
+            color = Color.White.copy(alpha = 0.4f),
+            fontSize = 8.sp,
             fontFamily = FontFamily.SansSerif
         )
         if (attr.uploader != null) {
-            Text(text = "· uploaded by", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+            Text(text = "· uploaded by", color = Color.White.copy(alpha = 0.4f), fontSize = 8.sp)
             Text(
                 text = attr.uploader.username,
-                color = Color.White.copy(alpha = 0.75f),
-                fontSize = 11.sp,
-                textDecoration = if (attr.uploader.url != null) TextDecoration.Underline else TextDecoration.None,
-                modifier = Modifier.clickable(enabled = attr.uploader.url != null) { openUrl(attr.uploader.url) }
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 8.sp,
+                
+                
             )
         }
         if (attr.maker != null) {
-            Text(text = "· made by", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+            Text(text = "· made by", color = Color.White.copy(alpha = 0.4f), fontSize = 8.sp)
             Text(
                 text = attr.maker.username,
-                color = Color.White.copy(alpha = 0.75f),
-                fontSize = 11.sp,
-                textDecoration = if (attr.maker.url != null) TextDecoration.Underline else TextDecoration.None,
-                modifier = Modifier.clickable(enabled = attr.maker.url != null) { openUrl(attr.maker.url) }
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 8.sp,
+                
+                
             )
         }
     }

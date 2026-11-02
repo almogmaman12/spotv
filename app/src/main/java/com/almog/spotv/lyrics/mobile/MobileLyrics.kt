@@ -239,7 +239,7 @@ fun MobileLyricsContent(
                 attr = attr,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 28.dp, bottom = 12.dp)
+                    .padding(start = 12.dp, bottom = 6.dp)
             )
         }
     }

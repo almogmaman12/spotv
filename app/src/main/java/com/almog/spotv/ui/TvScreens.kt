@@ -163,6 +163,14 @@ private fun NowPlayingScreen(
     LaunchedEffect(settingsOpen) {
         if (settingsOpen) controlsShown = false
     }
+    val playFocus = remember { FocusRequester() }
+    // Whenever the controls come up (or go away), focus is back on play / pause.
+    LaunchedEffect(controlsShown) {
+        try {
+            playFocus.requestFocus()
+        } catch (_: IllegalStateException) {
+        }
+    }
     val reveal by androidx.compose.animation.core.animateFloatAsState(
         if (controlsShown) 1f else 0f, animationSpec = tween(350), label = "controlsReveal",
     )
@@ -177,7 +185,6 @@ private fun NowPlayingScreen(
     }
 
     // The play button holds focus even while hidden, so the remote always reaches the controls.
-    val playFocus = remember { FocusRequester() }
     LaunchedEffect(settingsOpen) {
         if (settingsOpen) return@LaunchedEffect
         try {
@@ -197,7 +204,8 @@ private fun NowPlayingScreen(
                 controlsShown = true
                 // The first press on hidden controls only brings them up, so nothing happens unseen.
                 wasHidden && (event.key == Key.DirectionCenter || event.key == Key.Enter ||
-                    event.key == Key.DirectionLeft || event.key == Key.DirectionRight)
+                    event.key == Key.DirectionLeft || event.key == Key.DirectionRight ||
+                    event.key == Key.DirectionUp || event.key == Key.DirectionDown)
             }
     ) {
         // Everything is sized from the screen height (1.0 = a 540dp-high screen), so it looks the
@@ -208,12 +216,8 @@ private fun NowPlayingScreen(
 
         Backdrop(cover)
 
-        // Lyrics fill the screen, leaving room for the title at the top.
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(start = d(40f), end = d(40f), top = d(104f), bottom = d(28f))
-        ) {
+        // Lyrics fill the whole screen; the title bar and controls sit on top of them.
+        Box(Modifier.fillMaxSize()) {
             // Re-created when a setting changes, so size / font / translation apply at once.
             key(settingsVersion) {
                 LyricsView(viewModel = lyricsVm, modifier = Modifier.fillMaxSize())
@@ -229,7 +233,7 @@ private fun NowPlayingScreen(
                 .height(d(150f))
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Black.copy(alpha = 0.75f), Color.Black.copy(alpha = 0.45f), Color.Transparent)
+                        listOf(Color.Black.copy(alpha = 0.50f), Color.Black.copy(alpha = 0.25f), Color.Transparent)
                     )
                 )
         )
@@ -237,7 +241,7 @@ private fun NowPlayingScreen(
             Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .padding(horizontal = d(84f), vertical = d(28f)),
+                .padding(horizontal = d(48f), vertical = d(28f)),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CoverArt(cover, d(80f))
@@ -291,7 +295,7 @@ private fun NowPlayingScreen(
                         listOf(Color.Transparent, Color.Black.copy(alpha = 0.45f), Color.Black.copy(alpha = 0.62f))
                     )
                 )
-                .padding(start = d(72f), end = d(72f), top = d(48f), bottom = d(30f)),
+                .padding(start = d(48f), end = d(48f), top = d(48f), bottom = d(30f)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (upNext != null) {
