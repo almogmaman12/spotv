@@ -92,9 +92,9 @@ fun SettingsPanel(
     var notePct by remember { mutableStateOf(prefs.getInt(LyricsFonts.PREF_NOTE_SIZE, 100)) }
 
     var style by remember { mutableStateOf(prefs.getString(TvPrefs.LYRICS_STYLE, "classic") ?: "classic") }
-    var beatPulse by remember { mutableStateOf(prefs.getBoolean(TvPrefs.BEAT_PULSE, true)) }
-    var poster by remember { mutableStateOf(prefs.getBoolean(TvPrefs.POSTER, true)) }
-    var depthBlur by remember { mutableStateOf(prefs.getBoolean(TvPrefs.DEPTH_BLUR, true)) }
+    var beatPulse by remember { mutableStateOf(prefs.getBoolean(TvPrefs.BEAT_PULSE, false)) }
+    var poster by remember { mutableStateOf(prefs.getBoolean(TvPrefs.POSTER, false)) }
+    var depthBlur by remember { mutableStateOf(prefs.getBoolean(TvPrefs.DEPTH_BLUR, false)) }
     var livingBg by remember { mutableStateOf(prefs.getBoolean(TvPrefs.LIVING_BG, true)) }
     var drift by remember { mutableStateOf(prefs.getBoolean(TvPrefs.DRIFT, true)) }
     var intro by remember { mutableStateOf(prefs.getBoolean(TvPrefs.INTRO, true)) }

@@ -32,7 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -134,9 +134,9 @@ fun KineticLyrics(
 ) {
     val context = LocalContext.current
     val prefs = remember { TvPrefs.prefs(context) }
-    val pulseOn = remember { prefs.getBoolean(TvPrefs.BEAT_PULSE, true) }
-    val posterOn = remember { prefs.getBoolean(TvPrefs.POSTER, true) }
-    val blurOn = remember { prefs.getBoolean(TvPrefs.DEPTH_BLUR, true) && Build.VERSION.SDK_INT >= 31 }
+    val pulseOn = remember { prefs.getBoolean(TvPrefs.BEAT_PULSE, false) }
+    val posterOn = remember { prefs.getBoolean(TvPrefs.POSTER, false) }
+    val blurOn = remember { prefs.getBoolean(TvPrefs.DEPTH_BLUR, false) && Build.VERSION.SDK_INT >= 31 }
     val fontKey = remember { prefs.getString(LyricsFonts.PREF_LYRICS_FONT, LyricsFonts.DEFAULT_KEY) }
     val family = remember(fontKey) {
         LyricsFonts.find(fontKey).resId?.let { FontFamily(Font(it, FontWeight.Bold)) } ?: FontFamily.Default
@@ -311,37 +311,41 @@ private fun KWordView(
     accent: Color,
 ) {
     val pose = remember { WordPose() }
-    val staticAlpha = if (relation < 0) 1f else 0.5f
-    Box(
-        Modifier
-            .padding(horizontal = (sp * 0.15f).dp)
+    val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
+    val base = Modifier.padding(horizontal = (sp * 0.15f).dp)
+    val mod = if (!live) {
+        base.alpha(if (relation < 0) 1f else 0.45f)
+    } else {
+        base
             .graphicsLayer {
-                if (live) {
-                    val pos = positionMs()
-                    WordMotion.pose(w.motion, pos - w.startMs, w.endMs - w.startMs, if (pulseOn) beat.pulse(pos) else 0f, pose)
-                    scaleX = pose.scaleX
-                    scaleY = pose.scaleY
-                    translationY = pose.dyEm * sp.sp.toPx()
-                    rotationZ = pose.rotationDeg
-                    transformOrigin = TransformOrigin(0.5f, 0.75f)
-                    val fill = WordMotion.fill(pos - w.startMs, w.endMs - w.startMs)
-                    alpha = 0.42f + 0.58f * fill
-                }
+                val pos = positionMs()
+                WordMotion.pose(w.motion, pos - w.startMs, w.endMs - w.startMs, if (pulseOn) beat.pulse(pos) else 0f, pose)
+                scaleX = pose.scaleX
+                scaleY = pose.scaleY
+                translationY = pose.dyEm * sp.sp.toPx()
+                transformOrigin = TransformOrigin(0.5f, 0.8f)
+                compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
             }
-            .drawBehind {
-                if (live && pose.glow > 0.02f) {
-                    val r = size.maxDimension * (0.55f + 0.5f * pose.glow)
-                    drawCircle(
-                        Brush.radialGradient(
-                            listOf(accent.copy(alpha = 0.55f * pose.glow), Color.Transparent),
-                            center = Offset(size.width / 2f, size.height / 2f), radius = r,
-                        ),
-                        radius = r, center = Offset(size.width / 2f, size.height / 2f),
-                    )
-                }
+            .drawWithContent {
+                drawContent()
+                // The word fills with light from one end to the other exactly as it is sung.
+                val dur = (w.endMs - w.startMs).coerceAtLeast(60L)
+                val f = ((positionMs() - w.startMs).toFloat() / dur).coerceIn(0f, 1f)
+                val edge = 0.3f
+                val head = f * (1f + edge)
+                val dim = Color.White.copy(alpha = 0.45f)
+                val brush = Brush.horizontalGradient(
+                    0f to Color.White,
+                    (head - edge).coerceIn(0f, 1f) to Color.White,
+                    head.coerceIn(0f, 1f) to dim,
+                    1f to dim,
+                    startX = if (rtl) size.width else 0f,
+                    endX = if (rtl) 0f else size.width,
+                )
+                drawRect(brush, blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
             }
-            .let { if (live) it else it.alpha(staticAlpha) },
-    ) {
+    }
+    Box(mod) {
         Text(w.text, color = Color.White, fontSize = sp.sp, fontWeight = FontWeight.Bold, fontFamily = family, softWrap = false)
     }
 }
@@ -375,7 +379,7 @@ private fun BreakRing(
 @Composable
 private fun PosterView(stanza: Stanza, baseSp: Float, family: FontFamily, accent: Color) {
     Box(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.72f)),
+        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)),
         contentAlignment = Alignment.CenterStart,
     ) {
         val lines = stanza.blocks.take(6)

@@ -328,7 +328,7 @@ private fun NowPlayingScreen(
                     if (livingBg && cover != null) {
                         LivingBackground(
                             palette = cover.palette, beat = beat, positionMs = clock,
-                            pulseEnabled = tvPrefs.getBoolean(TvPrefs.BEAT_PULSE, true),
+                            pulseEnabled = tvPrefs.getBoolean(TvPrefs.BEAT_PULSE, false),
                         )
                     }
                     KineticLyrics(
