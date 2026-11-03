@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -389,6 +390,8 @@ private fun NowPlayingScreen(
             }
             if (p.value < 1f) {
                 val big = d(220f)
+                val mw = maxWidth
+                val mh = maxHeight
                 Column(
                     Modifier
                         .align(Alignment.Center)
@@ -398,8 +401,8 @@ private fun NowPlayingScreen(
                             alpha = 1f - e
                             scaleX = 1f - 0.7f * e
                             scaleY = 1f - 0.7f * e
-                            translationX = -(maxWidth.toPx() / 2f - d(120f).toPx()) * e
-                            translationY = -(maxHeight.toPx() / 2f - d(70f).toPx()) * e
+                            translationX = -(mw.toPx() / 2f - 120.dp.toPx() * s) * e
+                            translationY = -(mh.toPx() / 2f - 70.dp.toPx() * s) * e
                         },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
