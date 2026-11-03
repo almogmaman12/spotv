@@ -157,7 +157,7 @@ fun KineticLyrics(
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
-        val gap = with(LocalDensity.current) { (baseSp * 0.7f).sp.roundToPx() }
+        val gap = with(LocalDensity.current) { (baseSp * 0.5f).sp.roundToPx() }
         val from = max(0, floor(scroll.value).toInt() - 3)
         val to = min(timeline.entries.lastIndex, floor(scroll.value).toInt() + 5)
 
@@ -231,9 +231,9 @@ private fun EntryView(
     hasDuet: Boolean,
     modifier: Modifier,
 ) {
-    val depthScale = (1f - 0.11f * distance).coerceAtLeast(0.6f)
-    val depthAlpha = when (distance) { 0 -> 1f; 1 -> 0.5f; 2 -> 0.28f; else -> 0.14f }
-    val blurDp: Dp = if (blurOn) (distance * 2.2f).coerceAtMost(7f).dp else 0.dp
+    val depthScale = (1f - 0.09f * distance).coerceAtLeast(0.66f)
+    val depthAlpha = when (distance) { 0 -> 1f; 1 -> 0.55f; 2 -> 0.32f; else -> 0.16f }
+    val blurDp: Dp = if (blurOn) ((distance - 1) * 1.6f).coerceIn(0f, 4f).dp else 0.dp
     // A slight parallax: lines already sung slip a little left, those to come sit a little right.
     val shift = relation * distance * 7f
     val layerMod = modifier
@@ -244,7 +244,7 @@ private fun EntryView(
             alpha = depthAlpha
             transformOrigin = TransformOrigin(0.5f, 0.5f)
         }
-        .let { if (blurOn && distance > 0) it.blur(blurDp) else it }
+        .let { if (blurOn && distance > 1) it.blur(blurDp) else it }
 
     when (entry) {
         is BreakEntry -> Box(layerMod, contentAlignment = Alignment.Center) {
@@ -252,20 +252,20 @@ private fun EntryView(
         }
         is LyricBlock -> {
             val live = distance == 0
-            val sp = baseSp * (1f + 0.2f * entry.emphasis)
+            val sp = baseSp * (1f + 0.2f * entry.emphasis) * (if (live) 1.12f else 1f)
             val words = remember(entry, beat.periodMs) { wordsOf(entry.lead, beat.periodMs) }
             val rtl = remember(entry) { RtlDetector.isRtl(entry.lead.rawText.ifBlank { words.joinToString(" ") { it.text } }) }
             val arrangement = when {
-                entry.oppositeAligned -> Arrangement.spacedBy((sp * 0.28f).dp, Alignment.End)
-                hasDuet -> Arrangement.spacedBy((sp * 0.28f).dp, Alignment.Start)
-                else -> Arrangement.spacedBy((sp * 0.28f).dp, Alignment.CenterHorizontally)
+                entry.oppositeAligned -> Arrangement.End
+                hasDuet -> Arrangement.Start
+                else -> Arrangement.Center
             }
             androidx.compose.runtime.CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalLayoutDirection provides
                     if (rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
             ) {
                 Column(layerMod, horizontalAlignment = Alignment.CenterHorizontally) {
-                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = if (rtl) Arrangement.spacedBy((sp * 0.28f).dp, Alignment.CenterHorizontally) else arrangement, verticalArrangement = Arrangement.spacedBy((sp * 0.1f).dp)) {
+                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = arrangement, verticalArrangement = Arrangement.spacedBy((sp * 0.1f).dp)) {
                         for (w in words) {
                             KWordView(w, sp, family, positionMs, beat, pulseOn, live, relation, accent)
                         }
@@ -274,7 +274,7 @@ private fun EntryView(
                         val bgWords = remember(bg) { wordsOf(bg, beat.periodMs) }
                         FlowRow(
                             Modifier.fillMaxWidth().padding(top = (sp * 0.1f).dp),
-                            horizontalArrangement = Arrangement.spacedBy((sp * 0.2f).dp, Alignment.CenterHorizontally),
+                            horizontalArrangement = Arrangement.Center,
                         ) {
                             for (w in bgWords) KWordView(w, sp * 0.55f, family, positionMs, beat, pulseOn, live, relation, accent)
                         }
@@ -305,9 +305,10 @@ private fun KWordView(
     accent: Color,
 ) {
     val pose = remember { WordPose() }
-    val staticAlpha = if (relation < 0) 1f else 0.42f
+    val staticAlpha = if (relation < 0) 1f else 0.5f
     Box(
         Modifier
+            .padding(horizontal = (sp * 0.15f).dp)
             .graphicsLayer {
                 if (live) {
                     val pos = positionMs()

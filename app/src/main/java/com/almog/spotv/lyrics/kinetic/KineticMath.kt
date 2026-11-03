@@ -286,20 +286,20 @@ object WordMotion {
         val pop = bump(elapsedMs)
         when (motion) {
             Motion.Normal -> {
-                val s = 1f + 0.12f * pop
+                val s = 1f + 0.2f * pop
                 pose.scaleX = s; pose.scaleY = s
-                pose.dyEm = -0.07f * pop
-                pose.glow = 0.5f * pop
+                pose.dyEm = -0.12f * pop
+                pose.glow = 0.8f * pop
             }
             Motion.Held -> {
                 val grow = (progress * progress * (3f - 2f * progress)) * exp(-after / 260f)
-                pose.scaleX = 1f + 0.13f * grow + 0.05f * pop
-                pose.scaleY = 1f + 0.06f * grow + 0.05f * pop
+                pose.scaleX = 1f + 0.28f * grow + 0.06f * pop
+                pose.scaleY = 1f + 0.12f * grow + 0.06f * pop
                 pose.dyEm = -0.03f * grow
                 pose.glow = grow
             }
             Motion.Shake -> {
-                val s = 1f + 0.17f * pop
+                val s = 1f + 0.28f * pop
                 pose.scaleX = s; pose.scaleY = s
                 pose.dyEm = -0.09f * pop
                 pose.glow = 0.7f * pop

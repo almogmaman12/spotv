@@ -42,7 +42,7 @@ fun LivingBackground(
             val c = colors[i % colors.size]
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(c.copy(alpha = 0.30f + 0.25f * energy + 0.10f * pulse), Color.Transparent),
+                    listOf(c.copy(alpha = 0.5f + 0.3f * energy + 0.15f * pulse), Color.Transparent),
                     center = Offset(cx, cy), radius = r,
                 ),
                 radius = r, center = Offset(cx, cy),

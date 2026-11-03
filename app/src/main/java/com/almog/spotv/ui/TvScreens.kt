@@ -332,7 +332,7 @@ private fun NowPlayingScreen(
                     }
                     KineticLyrics(
                         viewModel = lyricsVm, beat = beat, positionMs = clock, accent = accent,
-                        baseSp = d(40f).value * tvPrefs.getInt(com.almog.spotv.Constants.PREF_KEY_LYRICS_SIZE_PERCENT, 100) / 100f,
+                        baseSp = d(54f).value * tvPrefs.getInt(com.almog.spotv.Constants.PREF_KEY_LYRICS_SIZE_PERCENT, 100) / 100f,
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
