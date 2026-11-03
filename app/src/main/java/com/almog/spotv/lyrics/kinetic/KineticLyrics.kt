@@ -152,7 +152,7 @@ fun KineticLyrics(
     // A float that glides to the active index, so lines scroll rather than jump.
     val scroll = remember(timeline) { Animatable(max(active, 0).toFloat()) }
     LaunchedEffect(active, timeline) {
-        scroll.animateTo(max(active, 0).toFloat(), tween(650))
+        scroll.animateTo(max(active, 0).toFloat(), tween(800, easing = androidx.compose.animation.core.FastOutSlowInEasing))
     }
 
     BoxWithConstraints(modifier.fillMaxSize()) {

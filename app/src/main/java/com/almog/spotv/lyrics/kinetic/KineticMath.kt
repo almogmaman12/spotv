@@ -280,40 +280,37 @@ object WordMotion {
             return
         }
 
-        val sungFor = min(elapsedMs, d)
-        val progress = sungFor.toFloat() / d
-        val after = (elapsedMs - d).coerceAtLeast(0L).toFloat()
-        val pop = bump(elapsedMs)
+        // Smooth and calm: the word rises and swells while it is sung, then settles back slowly.
+        val rise = max(d, 260L)
+        val p = (elapsedMs.toFloat() / rise).coerceIn(0f, 1f)
+        val ease = p * p * (3f - 2f * p)
+        val settle = if (elapsedMs > rise) exp(-(elapsedMs - rise) / 450f) else 1f
+        val k = ease * settle
         when (motion) {
             Motion.Normal -> {
-                val s = 1f + 0.2f * pop
-                pose.scaleX = s; pose.scaleY = s
-                pose.dyEm = -0.12f * pop
-                pose.glow = 0.8f * pop
+                val sc = 1f + 0.06f * k
+                pose.scaleX = sc; pose.scaleY = sc
+                pose.dyEm = -0.05f * k
+                pose.glow = 0.35f * k
             }
             Motion.Held -> {
-                val grow = (progress * progress * (3f - 2f * progress)) * exp(-after / 260f)
-                pose.scaleX = 1f + 0.28f * grow + 0.06f * pop
-                pose.scaleY = 1f + 0.12f * grow + 0.06f * pop
-                pose.dyEm = -0.03f * grow
-                pose.glow = grow
+                pose.scaleX = 1f + 0.12f * k
+                pose.scaleY = 1f + 0.12f * k
+                pose.dyEm = -0.06f * k
+                pose.glow = 0.9f * k
             }
             Motion.Shake -> {
-                val s = 1f + 0.28f * pop
-                pose.scaleX = s; pose.scaleY = s
-                pose.dyEm = -0.09f * pop
-                pose.glow = 0.7f * pop
-                if (elapsedMs <= d + 160L) {
-                    val decay = 1f - (elapsedMs.toFloat() / (d + 160f)).coerceIn(0f, 1f)
-                    pose.rotationDeg = sin(elapsedMs * 0.085f) * 2.6f * decay
-                }
+                val sc = 1f + 0.12f * k
+                pose.scaleX = sc; pose.scaleY = sc
+                pose.dyEm = -0.08f * k
+                pose.glow = 0.6f * k
             }
         }
         if (elapsedMs <= d) {
-            val boost = 1f + 0.035f * pulse
+            val boost = 1f + 0.02f * pulse
             pose.scaleX *= boost
             pose.scaleY *= boost
-            pose.glow = (pose.glow + 0.25f * pulse).coerceAtMost(1f)
+            pose.glow = (pose.glow + 0.12f * pulse).coerceAtMost(1f)
         }
     }
 }

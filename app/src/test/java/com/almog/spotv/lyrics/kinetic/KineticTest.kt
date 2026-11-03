@@ -92,7 +92,7 @@ class KineticTest {
 
         val pose = WordPose()
         WordMotion.pose(Motion.Normal, 140, 200, 0f, pose)
-        assertTrue(pose.scaleX > 1.05f)
+        assertTrue(pose.scaleX > 1.03f)
         WordMotion.pose(Motion.Normal, 2000, 200, 0f, pose)
         assertEquals(1f, pose.scaleX, 0.001f)
         WordMotion.pose(Motion.Held, 1000, 1200, 0f, pose)
