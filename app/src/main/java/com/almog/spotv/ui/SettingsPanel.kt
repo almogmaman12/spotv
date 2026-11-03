@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.almog.spotv.BuildConfig
 import com.almog.spotv.Constants
+import com.almog.spotv.TvPrefs
 import com.almog.spotv.lyrics.mobile.LyricsFonts
 import com.almog.spotv.lyrics.mobile.MobileLyricsSources
 import com.almog.spotv.lyrics.mobile.MobileTranslation
@@ -86,6 +87,17 @@ fun SettingsPanel(
     var romanize by remember { mutableStateOf(prefs.getBoolean(MobileTranslation.PREF_ROMANIZE, false)) }
     var notePct by remember { mutableStateOf(prefs.getInt(LyricsFonts.PREF_NOTE_SIZE, 100)) }
 
+    var style by remember { mutableStateOf(prefs.getString(TvPrefs.LYRICS_STYLE, "classic") ?: "classic") }
+    var beatPulse by remember { mutableStateOf(prefs.getBoolean(TvPrefs.BEAT_PULSE, true)) }
+    var poster by remember { mutableStateOf(prefs.getBoolean(TvPrefs.POSTER, true)) }
+    var depthBlur by remember { mutableStateOf(prefs.getBoolean(TvPrefs.DEPTH_BLUR, true)) }
+    var livingBg by remember { mutableStateOf(prefs.getBoolean(TvPrefs.LIVING_BG, true)) }
+    var drift by remember { mutableStateOf(prefs.getBoolean(TvPrefs.DRIFT, true)) }
+    var intro by remember { mutableStateOf(prefs.getBoolean(TvPrefs.INTRO, true)) }
+    var ambient by remember { mutableStateOf(prefs.getInt(TvPrefs.AMBIENT_MINUTES, 5)) }
+
+    fun flip(key: String, now: Boolean) { prefs.edit().putBoolean(key, now).apply(); onChanged() }
+
     val sources = remember { MobileLyricsSources.sources() }
     val enabled = remember { mutableStateMapOf<String, Boolean>().apply { sources.forEach { put(it.id, it.enabled) } } }
     val disclosed = remember { mutableStateMapOf<String, Boolean>() }
@@ -113,8 +125,33 @@ fun SettingsPanel(
             )
 
             Header("Lyrics", s)
+            fun toggleStyle() {
+                style = if (style == "kinetic") "classic" else "kinetic"
+                prefs.edit().putString(TvPrefs.LYRICS_STYLE, style).apply()
+                onChanged()
+            }
             SettingRow(
-                "Text size", "$sizePct%", s, focusRequester = first,
+                "Lyrics style", if (style == "kinetic") "Kinetic" else "Classic", s, focusRequester = first,
+                note = "Kinetic: words move the way they are sung, with depth, beat pulse and verse posters.",
+                onLeft = { toggleStyle() }, onRight = { toggleStyle() },
+            )
+            if (style == "kinetic") {
+                SettingRow("Beat pulse", if (beatPulse) "On" else "Off", s,
+                    onLeft = { beatPulse = !beatPulse; flip(TvPrefs.BEAT_PULSE, beatPulse) },
+                    onRight = { beatPulse = !beatPulse; flip(TvPrefs.BEAT_PULSE, beatPulse) })
+                SettingRow("Verse posters", if (poster) "On" else "Off", s,
+                    onLeft = { poster = !poster; flip(TvPrefs.POSTER, poster) },
+                    onRight = { poster = !poster; flip(TvPrefs.POSTER, poster) })
+                SettingRow("Depth blur", if (depthBlur) "On" else "Off", s,
+                    note = "Blurs lines far from the current one (Android 12+ TVs).",
+                    onLeft = { depthBlur = !depthBlur; flip(TvPrefs.DEPTH_BLUR, depthBlur) },
+                    onRight = { depthBlur = !depthBlur; flip(TvPrefs.DEPTH_BLUR, depthBlur) })
+                SettingRow("Living background", if (livingBg) "On" else "Off", s,
+                    onLeft = { livingBg = !livingBg; flip(TvPrefs.LIVING_BG, livingBg) },
+                    onRight = { livingBg = !livingBg; flip(TvPrefs.LIVING_BG, livingBg) })
+            }
+            SettingRow(
+                "Text size", "$sizePct%", s,
                 onLeft = { sizePct = (sizePct - 10).coerceAtLeast(50); prefs.edit().putInt(Constants.PREF_KEY_LYRICS_SIZE_PERCENT, sizePct).apply(); onChanged() },
                 onRight = { sizePct = (sizePct + 10).coerceAtMost(200); prefs.edit().putInt(Constants.PREF_KEY_LYRICS_SIZE_PERCENT, sizePct).apply(); onChanged() },
             )
@@ -204,6 +241,19 @@ fun SettingsPanel(
                     )
                 }
             }
+
+            Header("Screen", s)
+            SettingRow("Song change card", if (intro) "On" else "Off", s,
+                note = "A big title card when a new song starts.",
+                onLeft = { intro = !intro; flip(TvPrefs.INTRO, intro) }, onRight = { intro = !intro; flip(TvPrefs.INTRO, intro) })
+            SettingRow("Burn-in protection", if (drift) "On" else "Off", s,
+                note = "Slowly drifts the whole picture a few pixels (OLED TVs).",
+                onLeft = { drift = !drift; flip(TvPrefs.DRIFT, drift) }, onRight = { drift = !drift; flip(TvPrefs.DRIFT, drift) })
+            val minutes = listOf(0, 1, 2, 5, 10, 20)
+            fun setAmbient(d: Int) { ambient = step(minutes, ambient, d); prefs.edit().putInt(TvPrefs.AMBIENT_MINUTES, ambient).apply(); onChanged() }
+            SettingRow("Clock after pause", if (ambient == 0) "Off" else "$ambient min", s,
+                note = "Shows a big clock and the cover when music stays paused.",
+                onLeft = { setAmbient(-1) }, onRight = { setAmbient(1) })
 
             Header("Account and data", s)
             SettingRow(

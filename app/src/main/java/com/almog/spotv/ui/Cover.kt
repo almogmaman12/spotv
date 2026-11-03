@@ -14,7 +14,13 @@ import kotlinx.coroutines.withContext
 import okhttp3.Request
 
 /** An album cover ready to draw: the picture, a tiny version that blurs when scaled up, and its main colour. */
-class Cover(val image: ImageBitmap, val blurred: ImageBitmap, val accent: Color)
+class Cover(
+    val image: ImageBitmap,
+    val blurred: ImageBitmap,
+    val accent: Color,
+    /** A few more colours from the picture, for the living background. */
+    val palette: List<Color> = listOf(accent),
+)
 
 object CoverLoader {
     private val cache = LruCache<String, Cover>(6)
@@ -47,7 +53,11 @@ object CoverLoader {
                 val palette = Palette.from(bitmap).maximumColorCount(16).generate()
                 val fallback = 0xFF1DB954.toInt()
                 val accent = palette.getVibrantColor(palette.getMutedColor(palette.getDominantColor(fallback)))
-                Cover(bitmap.asImageBitmap(), small.asImageBitmap(), Color(accent))
+                val swatches = listOfNotNull(
+                    palette.vibrantSwatch, palette.lightVibrantSwatch, palette.darkVibrantSwatch,
+                    palette.mutedSwatch, palette.dominantSwatch,
+                ).map { Color(it.rgb) }.distinct()
+                Cover(bitmap.asImageBitmap(), small.asImageBitmap(), Color(accent), swatches.ifEmpty { listOf(Color(accent)) })
             }
         }
     } catch (e: Exception) {

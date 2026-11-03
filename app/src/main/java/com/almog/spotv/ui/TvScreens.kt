@@ -69,6 +69,11 @@ import com.almog.spotv.AppStatus
 import com.almog.spotv.Constants
 import com.almog.spotv.TvViewModel
 import com.almog.spotv.lyrics.ui.LyricsView
+import com.almog.spotv.TvPrefs
+import com.almog.spotv.lyrics.kinetic.Beats
+import com.almog.spotv.lyrics.kinetic.FlatBeatClock
+import com.almog.spotv.lyrics.kinetic.KineticLyrics
+import com.almog.spotv.lyrics.kinetic.rememberLyricsClock
 import com.almog.spotv.lyrics.viewmodel.LyricsViewModel
 import com.almog.spotv.spotify.NowPlaying
 import com.almog.spotv.spotify.PlayerRepository
@@ -108,7 +113,52 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
     BackHandler(enabled = settingsOpen && loggedIn) { tv.closeSettings() }
 
     val current = playing
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember(settingsVersion) { TvPrefs.prefs(ctx) }
+    val driftOn = remember(settingsVersion) { prefs.getBoolean(TvPrefs.DRIFT, true) }
+    val ambientMinutes = remember(settingsVersion) { prefs.getInt(TvPrefs.AMBIENT_MINUTES, 5) }
+
+    // Ambient mode: music paused for a while -> a big clock and the cover, until any button is pressed.
+    var ambient by remember { mutableStateOf(false) }
+    val isPlaying = current?.isPlaying == true
+    LaunchedEffect(isPlaying, current != null, ambientMinutes, settingsOpen) {
+        ambient = false
+        if (current != null && !isPlaying && ambientMinutes > 0 && !settingsOpen) {
+            delay(ambientMinutes * 60_000L)
+            ambient = true
+        }
+    }
+    LaunchedEffect(isPlaying) { if (isPlaying) ambient = false }
+
+    // Burn-in protection: the whole picture wanders a few pixels, very slowly.
+    val drift = androidx.compose.animation.core.rememberInfiniteTransition(label = "drift")
+    val driftPhase by drift.animateFloat(
+        0f, (2 * Math.PI).toFloat(),
+        androidx.compose.animation.core.infiniteRepeatable(
+            tween(240_000, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "driftPhase",
+    )
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .onPreviewKeyEvent { e ->
+                if (ambient && e.type == KeyEventType.KeyDown) {
+                    ambient = false
+                    true // the first press only wakes the screen
+                } else {
+                    false
+                }
+            }
+            .graphicsLayer {
+                if (driftOn) {
+                    scaleX = 1.02f; scaleY = 1.02f
+                    translationX = kotlin.math.sin(driftPhase) * 14.dp.toPx()
+                    translationY = kotlin.math.cos(driftPhase * 0.8f) * 10.dp.toPx()
+                }
+            }
+    ) {
         when {
             !loggedIn -> LoginScreen(tv)
             current == null -> IdleScreen(connected, onOpenSettings = { tv.openSettings() })
@@ -132,7 +182,46 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
                 modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.55f),
             )
         }
+        if (ambient && current != null) AmbientScreen(current, cover, maxHeight.value)
         status?.let { StatusBanner(it, Modifier.align(Alignment.TopCenter)) }
+    }
+}
+
+/** A big clock beside the cover on black, drifting slowly so no pixel stays lit. */
+@Composable
+private fun AmbientScreen(np: NowPlaying, cover: Cover?, heightDp: Float) {
+    val s = heightDp / 540f
+    var time by remember { mutableStateOf(java.time.LocalTime.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            time = java.time.LocalTime.now()
+            delay(10_000)
+        }
+    }
+    val phase by androidx.compose.animation.core.rememberInfiniteTransition(label = "ambient").animateFloat(
+        0f, (2 * Math.PI).toFloat(),
+        androidx.compose.animation.core.infiniteRepeatable(tween(120_000, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "ambientPhase",
+    )
+    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        Row(
+            Modifier.graphicsLayer {
+                translationX = kotlin.math.sin(phase) * 60.dp.toPx()
+                translationY = kotlin.math.cos(phase * 0.7f) * 40.dp.toPx()
+            },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CoverArt(cover, (200f * s).dp)
+            Spacer(Modifier.width((40f * s).dp))
+            Column {
+                Text(
+                    "%02d:%02d".format(time.hour, time.minute),
+                    color = Color.White.copy(alpha = 0.85f), fontSize = (110f * s).sp, fontWeight = FontWeight.Light,
+                )
+                Text(np.title, color = Color.White.copy(alpha = 0.45f), fontSize = (22f * s).sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = (520f * s).dp))
+                Text(np.artist, color = Color.White.copy(alpha = 0.3f), fontSize = (16f * s).sp, maxLines = 1)
+            }
+        }
     }
 }
 
@@ -150,7 +239,14 @@ private fun NowPlayingScreen(
     settingsVersion: Int,
     onOpenSettings: () -> Unit,
 ) {
-    val accent = cover?.accent ?: SpotifyGreen
+    val accent by androidx.compose.animation.animateColorAsState(
+        cover?.accent ?: SpotifyGreen, animationSpec = tween(1500), label = "accent",
+    )
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val tvPrefs = remember(settingsVersion) { TvPrefs.prefs(context) }
+    val kinetic = remember(settingsVersion) { tvPrefs.getString(TvPrefs.LYRICS_STYLE, "classic") == "kinetic" }
+    val livingBg = remember(settingsVersion) { tvPrefs.getBoolean(TvPrefs.LIVING_BG, true) }
+    val introOn = remember(settingsVersion) { tvPrefs.getBoolean(TvPrefs.INTRO, true) }
 
     // The controls stay hidden until a remote button is pressed, then slide up and hide again.
     var lastInput by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
@@ -221,7 +317,26 @@ private fun NowPlayingScreen(
         Box(Modifier.fillMaxSize()) {
             // Re-created when a setting changes, so size / font / translation apply at once.
             key(settingsVersion) {
-                LyricsView(viewModel = lyricsVm, modifier = Modifier.fillMaxSize())
+                if (kinetic) {
+                    val lyricState by lyricsVm.uiState.collectAsStateWithLifecycle()
+                    val clock = rememberLyricsClock(lyricsVm)
+                    val beat = remember(lyricState.track) {
+                        lyricState.track?.let { Beats.fromLyrics(it) } ?: FlatBeatClock()
+                    }
+                    if (livingBg && cover != null) {
+                        LivingBackground(
+                            palette = cover.palette, beat = beat, positionMs = clock,
+                            pulseEnabled = tvPrefs.getBoolean(TvPrefs.BEAT_PULSE, true),
+                        )
+                    }
+                    KineticLyrics(
+                        viewModel = lyricsVm, beat = beat, positionMs = clock, accent = accent,
+                        baseSp = d(40f).value * tvPrefs.getInt(com.almog.spotv.Constants.PREF_KEY_LYRICS_SIZE_PERCENT, 100) / 100f,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    LyricsView(viewModel = lyricsVm, modifier = Modifier.fillMaxSize())
+                }
             }
             NoLyricsHint(lyricsVm, np.isPodcast, t(26f))
         }
@@ -261,6 +376,38 @@ private fun NowPlayingScreen(
                 // Shown even when the controls are hidden, so a paused song is obvious.
                 Spacer(Modifier.width(d(16f)))
                 Canvas(Modifier.size(d(26f))) { drawPauseIcon(Color.White.copy(alpha = 0.85f)) }
+            }
+        }
+
+        // Song change: a big title card that shrinks into the corner card.
+        if (introOn) {
+            val p = remember(np.trackId) { androidx.compose.animation.core.Animatable(0f) }
+            LaunchedEffect(np.trackId) {
+                p.snapTo(0f)
+                delay(2200)
+                p.animateTo(1f, tween(900))
+            }
+            if (p.value < 1f) {
+                val big = d(220f)
+                Column(
+                    Modifier
+                        .align(Alignment.Center)
+                        .graphicsLayer {
+                            val k = p.value
+                            val e = k * k * (3f - 2f * k)
+                            alpha = 1f - e
+                            scaleX = 1f - 0.7f * e
+                            scaleY = 1f - 0.7f * e
+                            translationX = -(maxWidth.toPx() / 2f - d(120f).toPx()) * e
+                            translationY = -(maxHeight.toPx() / 2f - d(70f).toPx()) * e
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    CoverArt(cover, big)
+                    Spacer(Modifier.height(d(16f)))
+                    Text(np.title, color = Color.White, fontSize = t(34f), fontWeight = FontWeight.Bold, maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = maxWidth * 0.6f))
+                    Text(np.artist, color = Color.White.copy(alpha = 0.75f), fontSize = t(20f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
 
