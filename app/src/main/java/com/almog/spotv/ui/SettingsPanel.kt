@@ -72,9 +72,13 @@ fun SettingsPanel(
     val s = screenHeightDp / 540f
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) {
-        try {
-            first.requestFocus()
-        } catch (_: IllegalStateException) {
+        // Retry briefly: the screen behind may still be handing focus around as the panel opens.
+        repeat(5) {
+            try {
+                first.requestFocus()
+            } catch (_: IllegalStateException) {
+            }
+            kotlinx.coroutines.delay(120)
         }
     }
 

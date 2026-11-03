@@ -263,7 +263,8 @@ private fun NowPlayingScreen(
     }
     val playFocus = remember { FocusRequester() }
     // Whenever the controls come up (or go away), focus is back on play / pause.
-    LaunchedEffect(controlsShown) {
+    LaunchedEffect(controlsShown, settingsOpen) {
+        if (settingsOpen) return@LaunchedEffect
         try {
             playFocus.requestFocus()
         } catch (_: IllegalStateException) {
@@ -296,7 +297,7 @@ private fun NowPlayingScreen(
         Modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (event.type != KeyEventType.KeyDown || settingsOpen) return@onPreviewKeyEvent false
                 val wasHidden = !controlsShown
                 lastInput = SystemClock.elapsedRealtime()
                 controlsShown = true

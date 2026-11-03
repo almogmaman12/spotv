@@ -270,13 +270,9 @@ object WordMotion {
         pose.scaleX = 1f; pose.scaleY = 1f; pose.dyEm = 0f; pose.rotationDeg = 0f; pose.glow = 0f
 
         if (elapsedMs < -PRE_ROLL_MS) {
-            pose.scaleX = 0.965f; pose.scaleY = 0.965f; pose.dyEm = 0.02f
             return
         }
         if (elapsedMs < 0L) {
-            val k = (elapsedMs + PRE_ROLL_MS).toFloat() / PRE_ROLL_MS
-            val s = 0.965f + 0.035f * k
-            pose.scaleX = s; pose.scaleY = s; pose.dyEm = 0.02f * (1f - k)
             return
         }
 
@@ -288,21 +284,18 @@ object WordMotion {
         val k = ease * settle
         when (motion) {
             Motion.Normal -> {
-                val sc = 1f + 0.06f * k
+                val sc = 1f + 0.03f * k
                 pose.scaleX = sc; pose.scaleY = sc
-                pose.dyEm = -0.05f * k
-                pose.glow = 0.35f * k
+                pose.glow = 0.3f * k
             }
             Motion.Held -> {
-                pose.scaleX = 1f + 0.12f * k
-                pose.scaleY = 1f + 0.12f * k
-                pose.dyEm = -0.06f * k
+                pose.scaleX = 1f + 0.07f * k
+                pose.scaleY = 1f + 0.07f * k
                 pose.glow = 0.9f * k
             }
             Motion.Shake -> {
-                val sc = 1f + 0.12f * k
+                val sc = 1f + 0.06f * k
                 pose.scaleX = sc; pose.scaleY = sc
-                pose.dyEm = -0.08f * k
                 pose.glow = 0.6f * k
             }
         }

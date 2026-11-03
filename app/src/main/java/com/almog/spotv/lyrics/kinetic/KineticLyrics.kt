@@ -3,6 +3,7 @@ package com.almog.spotv.lyrics.kinetic
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -231,20 +232,25 @@ private fun EntryView(
     hasDuet: Boolean,
     modifier: Modifier,
 ) {
-    val depthScale = (1f - 0.09f * distance).coerceAtLeast(0.66f)
-    val depthAlpha = when (distance) { 0 -> 1f; 1 -> 0.55f; 2 -> 0.32f; else -> 0.16f }
-    val blurDp: Dp = if (blurOn) ((distance - 1) * 1.6f).coerceIn(0f, 4f).dp else 0.dp
-    // A slight parallax: lines already sung slip a little left, those to come sit a little right.
-    val shift = relation * distance * 7f
+    // Every change of distance is eased, so lines never snap between sizes.
+    val spec = tween<Float>(700, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+    val depthScale by animateFloatAsState(if (distance == 0) 1.05f else (1f - 0.08f * distance).coerceAtLeast(0.7f), spec, label = "scale")
+    val depthAlpha by animateFloatAsState(
+        when (distance) { 0 -> 1f; 1 -> 0.5f; 2 -> 0.3f; else -> 0.15f }, spec, label = "alpha",
+    )
+    val blurTarget = if (blurOn) ((distance - 1) * 1.6f).coerceIn(0f, 4f) else 0f
+    val blurNow by animateFloatAsState(blurTarget, spec, label = "blur")
+    val blurDp: Dp = blurNow.dp
+    val shiftNow by animateFloatAsState((relation * distance * 6f), spec, label = "shift")
     val layerMod = modifier
         .fillMaxWidth()
         .graphicsLayer {
             scaleX = depthScale; scaleY = depthScale
-            translationX = shift.dp.toPx()
+            translationX = shiftNow.dp.toPx()
             alpha = depthAlpha
             transformOrigin = TransformOrigin(0.5f, 0.5f)
         }
-        .let { if (blurOn && distance > 1) it.blur(blurDp) else it }
+        .let { if (blurOn && blurNow > 0.1f) it.blur(blurDp) else it }
 
     when (entry) {
         is BreakEntry -> Box(layerMod, contentAlignment = Alignment.Center) {
@@ -252,7 +258,7 @@ private fun EntryView(
         }
         is LyricBlock -> {
             val live = distance == 0
-            val sp = baseSp * (1f + 0.2f * entry.emphasis) * (if (live) 1.12f else 1f)
+            val sp = baseSp * (1f + 0.2f * entry.emphasis)
             val words = remember(entry, beat.periodMs) { wordsOf(entry.lead, beat.periodMs) }
             val rtl = remember(entry) { RtlDetector.isRtl(entry.lead.rawText.ifBlank { words.joinToString(" ") { it.text } }) }
             val arrangement = when {
