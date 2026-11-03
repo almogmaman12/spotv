@@ -408,7 +408,7 @@ private fun NowPlayingScreen(
                 ) {
                     CoverArt(cover, big)
                     Spacer(Modifier.height(d(16f)))
-                    Text(np.title, color = Color.White, fontSize = t(34f), fontWeight = FontWeight.Bold, maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = maxWidth * 0.6f))
+                    Text(np.title, color = Color.White, fontSize = t(34f), fontWeight = FontWeight.Bold, maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = mw * 0.6f))
                     Text(np.artist, color = Color.White.copy(alpha = 0.75f), fontSize = t(20f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
