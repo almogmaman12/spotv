@@ -23,7 +23,11 @@ class AccessibilitySongMetadataService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         val packageName = event.packageName?.toString().orEmpty()
-        if (packageName.isBlank() || packageName == this.packageName) return
+        if (packageName.isBlank()) return
+        if (packageName == this.packageName) {
+            AccessibilitySongSource.publish(null)
+            return
+        }
 
         val root = rootInActiveWindow ?: run { AccessibilitySongSource.publish(null); return }
         try {
