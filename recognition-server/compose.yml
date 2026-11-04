@@ -1,0 +1,10 @@
+services:
+  spottv-recognition:
+    build: .
+    container_name: spottv-recognition
+    restart: unless-stopped
+    ports:
+      - "10000:10000"
+    environment:
+      PORT: "10000"
+      ACOUSTID_CLIENT_KEY: ${ACOUSTID_CLIENT_KEY:-}
