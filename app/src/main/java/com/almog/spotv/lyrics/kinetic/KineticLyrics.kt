@@ -176,7 +176,6 @@ fun KineticLyrics(
                         val sp = fit.coerceIn(baseSp * 1.1f, baseSp * 2.6f)
                         val words = remember(entry, beat.periodMs) { wordsOf(entry.lead, beat.periodMs) }
                         val rtl = remember(entry) { RtlDetector.isRtl(text) }
-                        val right = entry.oppositeAligned || rtl
                         androidx.compose.runtime.CompositionLocalProvider(
                             androidx.compose.ui.platform.LocalLayoutDirection provides
                                 if (rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
@@ -185,12 +184,17 @@ fun KineticLyrics(
                                 Modifier
                                     .align(Alignment.CenterStart)
                                     .fillMaxWidth()
+                                    .graphicsLayer {
+                                        // Once a line is done it settles back a little, so the eye moves on.
+                                        val d = ((positionMs() - entry.endMs - 1500L) / 2000f).coerceIn(0f, 1f)
+                                        alpha = 1f - 0.5f * d
+                                    }
                                     .padding(horizontal = screenW * 0.07f),
-                                horizontalAlignment = Alignment.Start,
+                                horizontalAlignment = if (entry.oppositeAligned) Alignment.End else Alignment.Start,
                             ) {
                                 FlowRow(
                                     Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.Start,
+                                    horizontalArrangement = if (entry.oppositeAligned) Arrangement.End else Arrangement.Start,
                                     verticalArrangement = Arrangement.spacedBy((sp * -0.04f).dp),
                                 ) {
                                     for (w in words) StageWord(w, sp, family, positionMs, beat, pulseOn, accent)
@@ -275,6 +279,10 @@ private fun StageWord(
         fontSize = sp.sp, fontWeight = FontWeight.ExtraBold, fontFamily = family, lineHeight = (sp * 1.02f).sp,
         fontStyle = if (italic) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
     )
+    // The accent copy carries a soft glow, so it fades in and out together with the highlight.
+    val glowStyle = style.copy(
+        shadow = androidx.compose.ui.graphics.Shadow(accent.copy(alpha = 0.55f), androidx.compose.ui.geometry.Offset.Zero, sp * 0.35f),
+    )
     val letters = remember(w) {
         if (w.motion == Motion.Held && w.endMs - w.startMs >= 700L && !italic) com.almog.spotv.lyrics.model.extractGraphemeClusters(w.text) else emptyList()
     }
@@ -311,7 +319,7 @@ private fun StageWord(
                     ) {
                         Text(ch, style = style, color = Color.White, softWrap = false)
                         Text(
-                            ch, style = style, color = accent, softWrap = false,
+                            ch, style = glowStyle, color = accent, softWrap = false,
                             modifier = Modifier.graphicsLayer {
                                 val pos = positionMs()
                                 alpha = when {
@@ -327,7 +335,7 @@ private fun StageWord(
         } else {
             Text(w.text, style = style, color = Color.White, softWrap = false)
             Text(
-                w.text, style = style, color = accent, softWrap = false,
+                w.text, style = glowStyle, color = accent, softWrap = false,
                 modifier = Modifier.graphicsLayer {
                     val pos = positionMs()
                     alpha = when {
@@ -361,7 +369,8 @@ private fun BreakRing(
         drawArc(Color.White.copy(alpha = 0.16f), 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
         drawArc(accent, -90f, 360f * p, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
         val pulse = if (pulseOn) beat.pulse(pos) else 0f
-        val r = this.size.minDimension * (0.16f + 0.05f * pulse)
+        val breathe = (kotlin.math.sin(pos / 700f) * 0.5f + 0.5f)
+        val r = this.size.minDimension * (0.15f + 0.03f * breathe + 0.05f * pulse)
         drawCircle(accent.copy(alpha = 0.55f + 0.35f * pulse), r, center)
     }
 }
