@@ -125,8 +125,8 @@ class MainActivity : ComponentActivity() {
             )
         }
         // This first stage only reads metadata. Accurate external-app playback position is not exposed
-        // consistently by every TV launcher/player, so do not invent a lyrics timing anchor.
-        lyricsVm.setPlaybackAnchor(0, true, 1f)
+        // consistently by every TV launcher/player, so leave the lyrics untimed rather than inventing
+        // a playback position.
     }
 
     /** Fetch the next few songs' lyrics early so skipping starts with lyrics ready. */
