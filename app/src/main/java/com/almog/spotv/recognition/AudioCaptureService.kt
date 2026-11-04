@@ -36,7 +36,7 @@ import kotlin.math.sqrt
 
 /**
  * User-started, short-sample capture. Internal playback is attempted first; silent/blocked capture
- * falls back to the microphone. Audio is sampled in 10-second windows, never continuously uploaded.
+ * falls back to the microphone. Audio is sampled in short 12-second windows, never continuously uploaded.
  */
 class AudioCaptureService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -112,6 +112,7 @@ class AudioCaptureService : Service() {
     private suspend fun recognitionLoop() {
         val recognizer = ShazamIoClient()
         val acoustId = AcoustIdBridgeClient()
+        val musicBrainz = MusicBrainzClient()
         var lastRecognizedKey = ""
         var lastRecognizedAt = 0L
         try {
@@ -142,7 +143,16 @@ class AudioCaptureService : Service() {
                     val key = "${match.artist.lowercase()}:${match.title.lowercase()}"
                     val now = System.currentTimeMillis()
                     if (key != lastRecognizedKey || now - lastRecognizedAt > SAME_TRACK_REFRESH_MS) {
-                        RecognizedTrackSource.publish(match)
+                        val enriched = try { musicBrainz.enrich(match.title, match.artist) } catch (_: Exception) { null }
+                        val finalTrack = if (enriched != null && enriched.title.equals(match.title, ignoreCase = true)) {
+                            match.copy(
+                                title = enriched.title,
+                                artist = enriched.artist,
+                                album = enriched.album.ifBlank { match.album },
+                                durationMs = enriched.durationMs.takeIf { it > 0L } ?: match.durationMs,
+                            )
+                        } else match
+                        RecognizedTrackSource.publish(finalTrack)
                         lastRecognizedKey = key
                         lastRecognizedAt = now
                     }
