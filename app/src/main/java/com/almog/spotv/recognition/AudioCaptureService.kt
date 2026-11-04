@@ -21,6 +21,7 @@ import android.os.IBinder
 import com.almog.spotv.BuildConfig
 import com.almog.spotv.MainActivity
 import com.almog.spotv.R
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -136,6 +137,8 @@ class AudioCaptureService : Service() {
                 val wav = toWav(pcm)
                 val match = try {
                     recognizer.recognize(wav) ?: acoustId.recognize(wav)
+                } catch (cancel: CancellationException) {
+                    throw cancel
                 } catch (_: Exception) {
                     null
                 }
@@ -143,7 +146,13 @@ class AudioCaptureService : Service() {
                     val key = "${match.artist.lowercase()}:${match.title.lowercase()}"
                     val now = System.currentTimeMillis()
                     if (key != lastRecognizedKey || now - lastRecognizedAt > SAME_TRACK_REFRESH_MS) {
-                        val enriched = try { musicBrainz.enrich(match.title, match.artist) } catch (_: Exception) { null }
+                        val enriched = try {
+                            musicBrainz.enrich(match.title, match.artist)
+                        } catch (cancel: CancellationException) {
+                            throw cancel
+                        } catch (_: Exception) {
+                            null
+                        }
                         val finalTrack = if (enriched != null && enriched.title.equals(match.title, ignoreCase = true)) {
                             match.copy(
                                 title = enriched.title,
