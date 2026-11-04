@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
         }
         seedLyricsFontSize()
 
-        setContent { TvRoot(tv, lyricsVm, onStartAudioRecognition = { startAudioRecognition() }) }
+        setContent { TvRoot(tv, lyricsVm, onStartAudioRecognition = { startAudioRecognition() }, onStopAudioRecognition = { stopAudioRecognition() }) }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -176,6 +176,10 @@ class MainActivity : ComponentActivity() {
                 isrc = "",
             )
         }
+    }
+
+    private fun stopAudioRecognition() {
+        stopService(Intent(this, AudioCaptureService::class.java))
     }
 
     private fun startAudioRecognition() {
