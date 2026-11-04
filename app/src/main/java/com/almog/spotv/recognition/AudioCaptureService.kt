@@ -1,5 +1,6 @@
 package com.almog.spotv.recognition
 
+import android.app.Activity
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -27,6 +28,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.nio.ByteBuffer
@@ -64,7 +66,7 @@ class AudioCaptureService : Service() {
             @Suppress("DEPRECATION")
             intent?.getParcelableExtra(EXTRA_RESULT_DATA)
         }
-        val hasProjection = resultCode == RESULT_OK && resultData != null
+        val hasProjection = resultCode == Activity.RESULT_OK && resultData != null
 
         try {
             startForeground(
