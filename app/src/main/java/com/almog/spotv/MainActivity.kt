@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
                 durationMs = track.durationMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
                 mediaSource = "android-media-session",
                 trackId = track.key,
-                isrc = null,
+                isrc = "",
             )
         }
         // This first stage only reads metadata. Accurate external-app playback position is not exposed
