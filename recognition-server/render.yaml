@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: spottv-recognition
+    runtime: docker
+    dockerfilePath: ./recognition-server/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
