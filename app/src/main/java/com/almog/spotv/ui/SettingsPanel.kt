@@ -206,8 +206,7 @@ fun SettingsPanel(
                 onRight = { notePct = (notePct + 10).coerceAtMost(150); prefs.edit().putInt(LyricsFonts.PREF_NOTE_SIZE, notePct).apply(); onChanged() },
             )
 
-            if (sources.isNotEmpty()) {
-                Header("Music recognition", s)
+            Header("Music recognition", s)
             SettingRow(
                 "Cross-app song metadata", "Open", s,
                 note = "Allow SpotTV in Android Notification access to read song details from other TV apps.",
