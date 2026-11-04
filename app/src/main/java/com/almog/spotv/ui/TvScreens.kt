@@ -87,15 +87,15 @@ import kotlinx.coroutines.delay
 private val SpotifyGreen = Color(0xFF1DB954)
 
 @Composable
-fun TvRoot(tv: TvViewModel, lyricsVm: LyricsViewModel, onStartAudioRecognition: () -> Unit = {}) {
+fun TvRoot(tv: TvViewModel, lyricsVm: LyricsViewModel, onStartAudioRecognition: () -> Unit = {}, onStopAudioRecognition: () -> Unit = {}) {
     // The TV layout never mirrors, whatever the device language (lyrics lines handle their own direction).
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        TvRootContent(tv, lyricsVm, onStartAudioRecognition)
+        TvRootContent(tv, lyricsVm, onStartAudioRecognition, onStopAudioRecognition)
     }
 }
 
 @Composable
-private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel, onStartAudioRecognition: () -> Unit) {
+private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel, onStartAudioRecognition: () -> Unit, onStopAudioRecognition: () -> Unit) {
     val loggedIn by tv.loggedIn.collectAsStateWithLifecycle()
     val playing by tv.player.state.collectAsStateWithLifecycle()
     val queue by tv.player.queue.collectAsStateWithLifecycle()
@@ -182,6 +182,7 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel, onStartAud
                 onChanged = { tv.settingsChanged() },
                 onLogout = { tv.logout() },
                 onStartAudioRecognition = onStartAudioRecognition,
+                onStopAudioRecognition = onStopAudioRecognition,
                 modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.55f),
             )
         }
