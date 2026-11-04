@@ -49,7 +49,6 @@ import com.almog.spotv.lyrics.mobile.LyricsFonts
 import com.almog.spotv.lyrics.mobile.MobileLyricsSources
 import com.almog.spotv.lyrics.mobile.MobileTranslation
 import com.almog.spotv.lyrics.repository.LyricsRepository
-import com.almog.spotv.ui.RadioBrowserPanel
 
 private val Green = Color(0xFF1DB954)
 
