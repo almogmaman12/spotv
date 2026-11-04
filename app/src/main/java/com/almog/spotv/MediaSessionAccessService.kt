@@ -81,7 +81,27 @@ class MediaSessionAccessService : NotificationListenerService() {
             if (playback.state != android.media.session.PlaybackState.STATE_PLAYING) return@firstNotNullOfOrNull null
             controller.toExternalTrack(playback.position, playback.playbackSpeed)
         }
-        MediaSessionSongSource.publish(selected)
+        MediaSessionSongSource.publish(selected ?: notificationTrack())
+    }
+
+    /** Some players publish track details in their media notification but not a media session. */
+    private fun notificationTrack(): ExternalPlayingTrack? {
+        val notifications = try { activeNotifications } catch (_: Exception) { null } ?: return null
+        for (notification in notifications) {
+            val extras = notification.notification.extras ?: continue
+            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
+            val artist = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+            if (title.length !in 2..120 || artist.length !in 2..100) continue
+            if (title.equals("now playing", true) || title.equals("playing", true)) continue
+            return ExternalPlayingTrack(
+                packageName = notification.packageName,
+                title = title,
+                artist = artist,
+                album = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString().orEmpty(),
+                durationMs = 0L,
+            )
+        }
+        return null
     }
 
     private fun MediaController.toExternalTrack(positionMs: Long, playbackSpeed: Float): ExternalPlayingTrack? {
