@@ -50,6 +50,12 @@ class MainActivity : ComponentActivity() {
                 }
                 launch { tv.player.state.collect { syncLyrics(it) } }
                 launch { tv.player.queue.collect { prefetchLyrics(it) } }
+                // Local Android media-session metadata takes priority when another TV app is playing.
+                launch {
+                    MediaSessionSongSource.track.collectLatest {
+                        syncLyrics(tv.player.state.value)
+                    }
+                }
                 // A setting changed: re-read the size and timing and re-sync the lyrics.
                 launch {
                     tv.settingsVersion.collect {
@@ -68,8 +74,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Hands the lyrics engine the song, and where it is, whenever the poll or a command changes either. */
+    /** Prefer metadata from an actively playing TV app, then fall back to the Spotify Web API. */
     private fun syncLyrics(np: NowPlaying?) {
+        val externalTrack = MediaSessionSongSource.track.value
+        if (externalTrack != null) {
+            syncExternalLyrics(externalTrack)
+            return
+        }
+
         if (np == null) {
             if (lastTrackId != null) {
                 lastTrackId = null
@@ -95,6 +107,26 @@ class MainActivity : ComponentActivity() {
         val offset = getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE).getInt(Constants.PREF_KEY_LYRICS_OFFSET_MS, 0)
         // The engine glides between anchors on its own and ignores near-identical ones.
         lyricsVm.setPlaybackAnchor(np.estimatedProgressMs() + offset, np.isPlaying, 1f)
+    }
+
+    /** Load lyrics for a song published by another Android TV app's media session. */
+    private fun syncExternalLyrics(track: ExternalPlayingTrack) {
+        if (track.key != lastTrackId) {
+            lastTrackId = track.key
+            lyricsVm.clearLyrics()
+            lyricsVm.loadLyrics(
+                artist = track.artist,
+                title = track.title,
+                album = track.album,
+                durationMs = track.durationMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                mediaSource = "android-media-session",
+                trackId = track.key,
+                isrc = null,
+            )
+        }
+        // This first stage only reads metadata. Accurate external-app playback position is not exposed
+        // consistently by every TV launcher/player, so do not invent a lyrics timing anchor.
+        lyricsVm.setPlaybackAnchor(0, true, 1f)
     }
 
     /** Fetch the next few songs' lyrics early so skipping starts with lyrics ready. */
