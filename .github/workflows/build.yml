@@ -17,6 +17,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Validate recognition bridge syntax
         run: python -m compileall -q recognition-server
+      - name: Build recognition bridge container
+        run: docker build -t spottv-recognition recognition-server
       - name: Debug APK
         run: ./gradlew --no-daemon assembleDebug
         env:
