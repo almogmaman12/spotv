@@ -34,7 +34,7 @@ class ShazamIoClient(private val baseUrl: String = BuildConfig.MUSIC_RECOGNITION
     }
 
     companion object {
-        private val defaultHttp = OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(25, TimeUnit.SECONDS).callTimeout(35, TimeUnit.SECONDS).build()
+        private val defaultHttp = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS).callTimeout(100, TimeUnit.SECONDS).build()
     }
 }
