@@ -18,7 +18,7 @@ The bridge has no user authentication. Keep port 10000 on your trusted home LAN 
 
 ## Deploy on Render's free plan
 
-1. Create a new Render Blueprint and connect this repository.
+1. Create a new Render Blueprint and connect this repository. Select the `feature/free-music-recognition` branch.
 2. Render detects `recognition-server/render.yaml`.
 3. Deploy the `spottv-recognition` web service.
 4. Copy its HTTPS URL. The health endpoint should return `{"status":"ok","provider":"ShazamIO"}`.
