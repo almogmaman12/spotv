@@ -68,6 +68,7 @@ fun SettingsPanel(
     onChanged: () -> Unit,
     onLogout: () -> Unit,
     onStartAudioRecognition: () -> Unit = {},
+    onStartMicrophoneOnly: () -> Unit = {},
     onStopAudioRecognition: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -225,8 +226,13 @@ fun SettingsPanel(
             )
             SettingRow(
                 "Start audio recognition", "Start", s,
-                note = "Requests permission to capture TV audio. If an app blocks internal capture, SpotTV falls back to the microphone. Requires a configured free recognition bridge.",
+                note = "Requests permission for internal TV audio. If the source blocks capture, SpotTV falls back to the microphone. Requires the free recognition bridge.",
                 onClick = onStartAudioRecognition,
+            )
+            SettingRow(
+                "Microphone-only recognition", "Start", s,
+                note = "Use this if you cancelled or cannot use internal audio capture. Requires microphone permission.",
+                onClick = onStartMicrophoneOnly,
             )
             SettingRow(
                 "Stop audio recognition", "Stop", s,
