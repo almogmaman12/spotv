@@ -12,6 +12,7 @@ SPOTIFY_REDIRECT_URI=https://almogmaman12.github.io/spotv/callback.html
 # https://developers.spicylyrics.org/dashboard
 SPICY_LYRICS_API_KEY=sl_sk_your_spicy_lyrics_key_here
 
-# Optional free music recognition bridge (deploy recognition-server/ first)
-# Set this to the HTTPS base URL of your bridge, without a trailing slash.
-MUSIC_RECOGNITION_URL=https://your-recognition-service.onrender.com
+# Optional free music recognition bridge (deploy recognition-server/ first).
+# Home server example: http://YOUR_SERVER_IP:10000
+# Render example: https://your-recognition-service.onrender.com
+MUSIC_RECOGNITION_URL=http://YOUR_SERVER_IP:10000
