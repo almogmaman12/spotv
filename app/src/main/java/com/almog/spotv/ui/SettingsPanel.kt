@@ -67,6 +67,7 @@ fun SettingsPanel(
     screenHeightDp: Float,
     onChanged: () -> Unit,
     onLogout: () -> Unit,
+    onStartAudioRecognition: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -213,6 +214,11 @@ fun SettingsPanel(
                 onClick = {
                     try { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } catch (_: Exception) { }
                 },
+            )
+            SettingRow(
+                "Start audio recognition", "Start", s,
+                note = "Requests permission to capture TV audio. If an app blocks internal capture, SpotTV falls back to the microphone. Requires a configured free recognition bridge.",
+                onClick = onStartAudioRecognition,
             )
 
             if (sources.isNotEmpty()) {
