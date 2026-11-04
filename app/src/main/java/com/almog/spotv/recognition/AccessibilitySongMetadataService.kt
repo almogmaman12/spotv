@@ -55,7 +55,13 @@ class AccessibilitySongMetadataService : AccessibilityService() {
         node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(output::add)
         for (index in 0 until node.childCount) {
             if (output.size >= MAX_NODES) break
-            collectVisibleText(node.getChild(index), output, depth + 1)
+            val child = node.getChild(index)
+            try {
+                collectVisibleText(child, output, depth + 1)
+            } finally {
+                @Suppress("DEPRECATION")
+                child?.recycle()
+            }
         }
     }
 
