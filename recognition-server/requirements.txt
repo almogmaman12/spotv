@@ -2,3 +2,4 @@ fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
 python-multipart>=0.0.9,<1
 shazamio>=0.3.0,<1
+pyacoustid>=1.2.2,<2
