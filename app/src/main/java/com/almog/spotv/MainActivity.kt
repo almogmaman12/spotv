@@ -27,6 +27,8 @@ import com.almog.spotv.ui.TvRoot
 import com.almog.spotv.recognition.AudioCaptureService
 import com.almog.spotv.recognition.RecognizedTrackSource
 import com.almog.spotv.recognition.RecognizedTrack
+import com.almog.spotv.recognition.AccessibilitySongSource
+import com.almog.spotv.recognition.VisibleTextTrack
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -73,6 +75,7 @@ class MainActivity : ComponentActivity() {
                 launch { tv.player.state.collect { syncLyrics(it) } }
                 launch { tv.player.queue.collect { prefetchLyrics(it) } }
                 launch { RecognizedTrackSource.track.collectLatest { syncLyrics(tv.player.state.value) } }
+                launch { AccessibilitySongSource.track.collectLatest { syncLyrics(tv.player.state.value) } }
                 // Local Android media-session metadata takes priority when another TV app is playing.
                 launch {
                     MediaSessionSongSource.track.collectLatest {
@@ -110,6 +113,13 @@ class MainActivity : ComponentActivity() {
         }
         if (externalTrack != null) {
             syncExternalLyrics(externalTrack)
+            return
+        }
+        val visibleTrack = AccessibilitySongSource.track.value?.takeUnless {
+            it.packageName == "com.spotify.music"
+        }
+        if (visibleTrack != null) {
+            syncVisibleTextLyrics(visibleTrack)
             return
         }
 
@@ -160,6 +170,24 @@ class MainActivity : ComponentActivity() {
         // a playback position.
     }
 
+
+
+    private fun syncVisibleTextLyrics(track: VisibleTextTrack) {
+        val key = "accessibility:${track.packageName}:${track.artist}:${track.title}"
+        if (key != lastTrackId) {
+            lastTrackId = key
+            lyricsVm.clearLyrics()
+            lyricsVm.loadLyrics(
+                artist = track.artist,
+                title = track.title,
+                album = "",
+                durationMs = 0,
+                mediaSource = "accessibility",
+                trackId = key,
+                isrc = "",
+            )
+        }
+    }
 
     private fun syncRecognizedLyrics(track: RecognizedTrack) {
         val key = "recognized:${track.artist}:${track.title}"
