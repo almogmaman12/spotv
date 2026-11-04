@@ -45,7 +45,12 @@ class MainActivity : ComponentActivity() {
     private val microphonePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
-                if (microphoneOnlyRequested) startAudioCaptureService(0, null) else requestPlaybackCapture()
+                if (microphoneOnlyRequested) {
+                    microphoneOnlyRequested = false
+                    startAudioCaptureService(0, null)
+                } else {
+                    requestPlaybackCapture()
+                }
             } else {
                 microphoneOnlyRequested = false
                 Toast.makeText(this, "Microphone permission is required for recognition.", Toast.LENGTH_LONG).show()
@@ -235,7 +240,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startAudioRecognition() {
         if (BuildConfig.MUSIC_RECOGNITION_URL.isBlank()) {
-            Toast.makeText(this, "Set MUSIC_RECOGNITION_URL in local.properties or GitHub Actions secrets first.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Set MUSIC_RECOGNITION_URL in local.properties or GitHub Actions variables first.", Toast.LENGTH_LONG).show()
             return
         }
         microphoneOnlyRequested = false
