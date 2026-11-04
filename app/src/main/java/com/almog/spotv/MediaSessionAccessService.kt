@@ -77,8 +77,8 @@ class MediaSessionAccessService : NotificationListenerService() {
         }
 
         val selected = sessions.firstNotNullOfOrNull { controller ->
-            val playback = controller.playbackState
-            if (playback?.state != android.media.session.PlaybackState.STATE_PLAYING) return@firstNotNullOfOrNull null
+            val playback = controller.playbackState ?: return@firstNotNullOfOrNull null
+            if (playback.state != android.media.session.PlaybackState.STATE_PLAYING) return@firstNotNullOfOrNull null
             controller.toExternalTrack(playback.position, playback.playbackSpeed)
         }
         MediaSessionSongSource.publish(selected)
