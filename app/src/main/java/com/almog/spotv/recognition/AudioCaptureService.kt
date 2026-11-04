@@ -169,9 +169,7 @@ class AudioCaptureService : Service() {
                     // Shazam offset points to the beginning of this 12-second sample.
                     // Advance to the sample end, then account for time spent awaiting the bridge.
                     val elapsedAfterSample = (SystemClock.elapsedRealtime() - sampleCompletedAt).coerceAtLeast(0L)
-                    val estimatedPosition = if (match.matchOffsetMs > 0L) {
-                        match.matchOffsetMs + SAMPLE_SECONDS * 1000L + elapsedAfterSample
-                    } else 0L
+                    val estimatedPosition = match.matchOffsetMs + SAMPLE_SECONDS * 1000L + elapsedAfterSample
                     RecognizedTrackSource.publish(displayTrack.copy(positionMs = estimatedPosition))
                     lastRecognizedAt = now
                     updateNotification("Recognized: ${match.artist} - ${match.title}")
