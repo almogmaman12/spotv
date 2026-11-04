@@ -292,7 +292,7 @@ class AudioCaptureService : Service() {
                 .setContentTitle("SpotTV music recognition")
                 .setContentText(text)
                 .setOngoing(true)
-                .addAction(Notification.Action.Builder(null, "Stop", stopPending).build())
+                .addAction(Notification.Action.Builder(R.drawable.ic_launcher_foreground, "Stop", stopPending).build())
                 .build()
         } else {
             @Suppress("DEPRECATION")
