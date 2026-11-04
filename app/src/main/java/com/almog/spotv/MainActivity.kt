@@ -99,14 +99,17 @@ class MainActivity : ComponentActivity() {
 
     /** Prefer metadata from an actively playing TV app, then fall back to the Spotify Web API. */
     private fun syncLyrics(np: NowPlaying?) {
-        val externalTrack = MediaSessionSongSource.track.value
-        if (externalTrack != null) {
-            syncExternalLyrics(externalTrack)
-            return
-        }
         val recognizedTrack = RecognizedTrackSource.track.value
         if (recognizedTrack != null) {
             syncRecognizedLyrics(recognizedTrack)
+            return
+        }
+        // Spotify's own session is handled by the Spotify API below, which provides playback position.
+        val externalTrack = MediaSessionSongSource.track.value?.takeUnless {
+            it.packageName == "com.spotify.music"
+        }
+        if (externalTrack != null) {
+            syncExternalLyrics(externalTrack)
             return
         }
 
