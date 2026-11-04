@@ -55,6 +55,13 @@ def _track_payload(result: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
     images = track.get("images") or {}
+    matches = result.get("matches") or []
+    match_offset_ms = 0
+    if matches:
+        try:
+            match_offset_ms = max(0, int(float(matches[0].get("offset", 0)) * 1000))
+        except (TypeError, ValueError):
+            match_offset_ms = 0
     return {
         "provider": "shazamio",
         "title": title,
@@ -64,6 +71,8 @@ def _track_payload(result: dict[str, Any]) -> dict[str, Any] | None:
         "providerTrackId": str(track.get("key") or ""),
         "artworkUrl": str(images.get("coverart") or ""),
         "trackUrl": str(track.get("url") or ""),
+        # Shazam offset is the position in the reference track where this sample begins.
+        "matchOffsetMs": match_offset_ms,
     }
 
 
