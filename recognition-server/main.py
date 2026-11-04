@@ -148,16 +148,8 @@ async def recognize_acoustid(request: Request, audio: UploadFile = File(...)) ->
         for recording in candidate.get("recordings", []):
             title = str(recording.get("title") or "").strip()
             artists = recording.get("artists") or []
-            artist_parts = []
-            for index, item in enumerate(artists):
-                name = str(item.get("name") or "").strip()
-                if not name:
-                    continue
-                joinphrase = str(item.get("joinphrase") or "")
-                if not joinphrase and index < len(artists) - 1:
-                    joinphrase = " & "
-                artist_parts.append(name + joinphrase)
-            artist = "".join(artist_parts).strip()
+            artist_names = [str(item.get("name") or "").strip() for item in artists]
+            artist = " & ".join(name for name in artist_names if name)
             releases = recording.get("releases") or []
             album = str(releases[0].get("title") or "").strip() if releases else ""
             if title and artist and score > best_score:
