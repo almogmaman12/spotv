@@ -1,5 +1,6 @@
 import asyncio
 import os
+import tempfile
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -8,6 +9,7 @@ from typing import Any
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from shazamio import Shazam
+import acoustid
 
 MAX_AUDIO_BYTES = 2 * 1024 * 1024
 MAX_SAMPLE_SECONDS = 12
@@ -95,6 +97,74 @@ async def recognize(request: Request, audio: UploadFile = File(...)) -> dict[str
     if track is None:
         return {"matched": False, "provider": "shazamio"}
     return {"matched": True, "track": track}
+
+
+@app.post("/v1/acoustid/recognize")
+async def recognize_acoustid(request: Request, audio: UploadFile = File(...)) -> dict[str, Any]:
+    client_key = os.getenv("ACOUSTID_CLIENT_KEY", "").strip()
+    if not client_key:
+        raise HTTPException(status_code=503, detail="AcoustID is not configured on this bridge.")
+    ip = _client_ip(request)
+    now = time.monotonic()
+    if now - last_request[ip] < RATE_LIMIT_SECONDS:
+        raise HTTPException(status_code=429, detail="Please wait before trying another sample.")
+    last_request[ip] = now
+
+    data = await audio.read(MAX_AUDIO_BYTES + 1)
+    if len(data) > MAX_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="Audio sample is too large.")
+    if len(data) < MIN_SAMPLE_BYTES:
+        raise HTTPException(status_code=400, detail="Audio sample is too short or empty.")
+
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp:
+            temp.write(data)
+            temp_path = temp.name
+        duration, fingerprint = await asyncio.to_thread(acoustid.fingerprint_file, temp_path)
+        result = await asyncio.to_thread(
+            acoustid.lookup,
+            client_key,
+            fingerprint,
+            duration,
+            meta="recordings+releases+tracks+compress",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="AcoustID lookup temporarily unavailable.") from exc
+    finally:
+        if temp_path:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+
+    if result.get("status") != "ok":
+        raise HTTPException(status_code=502, detail="AcoustID returned an unsuccessful response.")
+
+    best = None
+    best_score = -1.0
+    for candidate in result.get("results", []):
+        score = float(candidate.get("score", 0))
+        for recording in candidate.get("recordings", []):
+            title = str(recording.get("title") or "").strip()
+            artists = recording.get("artists") or []
+            artist = str(artists[0].get("name") or "").strip() if artists else ""
+            if title and artist and score > best_score:
+                best_score = score
+                best = {
+                    "provider": "acoustid",
+                    "title": title,
+                    "artist": artist,
+                    "album": "",
+                    "durationMs": 0,
+                    "providerTrackId": str(recording.get("id") or ""),
+                    "artworkUrl": "",
+                    "trackUrl": "",
+                }
+    if best is None:
+        return {"matched": False, "provider": "acoustid"}
+    best["confidence"] = best_score
+    return {"matched": True, "track": best}
 
 
 @app.get("/")
