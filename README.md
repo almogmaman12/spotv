@@ -42,11 +42,11 @@ inspect visible song-like text on-device when apps expose it. That text is not u
 
 The opt-in audio path is also implemented:
 - SpotTV asks for microphone permission and Android's MediaProjection consent.
-- It tries Android internal playback capture first, where the playing app permits it.
-- If internal capture is blocked or returns silence, it falls back to the TV microphone.
+- The user can choose internal playback capture or microphone-only mode.
+- Internal capture is tried first; if the playing app blocks it or returns silence, SpotTV falls back to the microphone.
 - It records a 12-second mono sample, not a continuous recording, and sends it to the configured
   recognition bridge. The notification includes a Stop action.
-- A successful match is passed into the existing lyrics engine. MusicBrainz is queried to enrich
+- Recognition can be stopped from Settings or the foreground notification. A successful match is passed into the existing lyrics engine. MusicBrainz is queried to enrich
   title/artist/album/duration when it finds a matching recording.
 
 ### Free recognition bridge
