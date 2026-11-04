@@ -10,13 +10,13 @@ class IcyMetadataParserTest {
     @Test
     fun readsArtistAndTitleMetadataBlock() {
         val metadata = "StreamTitle='Billie Eilish - bad guy';".toByteArray(Charsets.UTF_8)
-        val input = streamWithMetadata(interval = 8, metadata)
+        val input = streamWithMetadata(interval = 8, metadata = metadata)
         assertEquals("Billie Eilish - bad guy", IcyMetadataParser.readNextTitle(input, 8))
     }
 
     @Test
     fun returnsNullForEmptyMetadataBlock() {
-        val input = streamWithMetadata(interval = 4, ByteArray(0))
+        val input = streamWithMetadata(interval = 4, metadata = ByteArray(0))
         assertNull(IcyMetadataParser.readNextTitle(input, 4))
     }
 
