@@ -56,14 +56,20 @@ class KineticTimeline(
     val hasDuet: Boolean,
 ) {
     /** The entry being sung at [posMs] (the last one that has started), or -1 before the first. */
+    /** When each entry takes the stage: shortly before its first word, but never while the line before is still being sung. */
+    private val triggers = LongArray(entries.size) { i ->
+        val lead = entries[i].startMs - LEAD_MS
+        if (i == 0) lead else max(lead, entries[i - 1].endMs.coerceAtMost(entries[i].startMs))
+    }
+
     fun activeIndex(posMs: Long): Int {
         var lo = 0
         var hi = entries.size - 1
         var found = -1
-        val t = posMs + LEAD_MS
+        val t = posMs
         while (lo <= hi) {
             val mid = (lo + hi) ushr 1
-            if (entries[mid].startMs <= t) {
+            if (triggers[mid] <= t) {
                 found = mid
                 lo = mid + 1
             } else {
@@ -79,7 +85,7 @@ class KineticTimeline(
 
     companion object {
         /** A line counts as sung this long before its first word, so the eye is already there. */
-        const val LEAD_MS = 150L
+        const val LEAD_MS = 500L
     }
 }
 

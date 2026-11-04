@@ -100,14 +100,24 @@ fun rememberLyricsClock(vm: LyricsViewModel): () -> Long {
     val state = vm.uiState.collectAsState()
     val pos = remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) {
+        // The clock runs on frame time and is only nudged toward Spotify's reported position, so a
+        // re-sync every few seconds never makes words stutter. Big differences (seeks) snap.
+        var shown = 0.0
+        var last = 0L
         while (true) {
-            withFrameNanos { }
+            val now = withFrameNanos { it }
+            val dtMs = if (last == 0L) 16.0 else ((now - last) / 1_000_000.0).coerceIn(0.0, 100.0)
+            last = now
             val a = state.value.anchor
-            pos.longValue = if (a.isPlaying) {
-                a.positionMs + ((android.os.SystemClock.elapsedRealtime() - a.anchorRealtimeMs) * a.speed).toLong()
+            if (a.isPlaying) {
+                val target = a.positionMs + (android.os.SystemClock.elapsedRealtime() - a.anchorRealtimeMs) * a.speed.toDouble()
+                shown += dtMs * a.speed
+                val err = target - shown
+                shown = if (kotlin.math.abs(err) > 600.0) target else shown + err * 0.06
             } else {
-                a.positionMs
+                shown = a.positionMs.toDouble()
             }
+            pos.longValue = shown.toLong()
         }
     }
     return { pos.longValue }
@@ -148,8 +158,8 @@ fun KineticLyrics(
         AnimatedContent(
             targetState = active,
             transitionSpec = {
-                (fadeIn(tween(260, delayMillis = 120)) + slideInVertically(tween(420)) { it / 10 }) togetherWith
-                    (fadeOut(tween(260)) + slideOutVertically(tween(380)) { -it / 8 })
+                fadeIn(tween(200, delayMillis = 140)) togetherWith
+                    (fadeOut(tween(320)) + slideOutVertically(tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -it / 14 })
             },
             label = "line",
             modifier = Modifier.fillMaxSize(),
@@ -258,11 +268,11 @@ private fun StageWord(
             .graphicsLayer {
                 val pos = positionMs()
                 // Entrance: from 0.55 s before the word, an ease-out rise of a third of its height.
-                val t = ((pos - w.startMs + 550L) / 650f).coerceIn(0f, 1f)
-                val e = 1f - (1f - t) * (1f - t) * (1f - t)
+                val t = ((pos - w.startMs + 700L) / 800f).coerceIn(0f, 1f)
+                val e = 1f - (1f - t) * (1f - t) * (1f - t) * (1f - t)
                 WordMotion.pose(w.motion, pos - w.startMs, w.endMs - w.startMs, if (pulseOn) beat.pulse(pos) else 0f, pose)
                 alpha = e
-                translationY = (1f - e) * sp.sp.toPx() * 0.45f
+                translationY = (1f - e) * sp.sp.toPx() * 0.35f
                 scaleX = pose.scaleX
                 scaleY = pose.scaleY
                 transformOrigin = TransformOrigin(0.5f, 0.85f)

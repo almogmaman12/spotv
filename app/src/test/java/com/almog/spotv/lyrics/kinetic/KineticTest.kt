@@ -47,7 +47,7 @@ class KineticTest {
         )
         assertEquals(-1, t.activeIndex(0))
         assertEquals(0, t.activeIndex(1_000))
-        assertEquals(0, t.activeIndex(3_000))
+        assertEquals(0, t.activeIndex(2_900))
         assertEquals(1, t.activeIndex(3_400))
         assertEquals(1, t.activeIndex(60_000))
     }
