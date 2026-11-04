@@ -73,10 +73,11 @@ in the APK. Set it only as `ACOUSTID_CLIENT_KEY` on the bridge.
 
 ### Radio and metadata helpers
 
-- Radio Browser station search is available in the Android code.
-- ICY `StreamTitle` extraction is implemented for radio stations that publish it. Radio Browser
-  itself does not guarantee current-track metadata, and HLS/other stream formats may need separate
-  handling.
+- A Radio Browser API client and ICY `StreamTitle` parser are included as building blocks for a future
+  SpotTV radio-station flow. They are not yet exposed as a station-search screen in the app.
+- Radio Browser does not identify audio from an unrelated radio app. It can only help when SpotTV
+  knows the station/stream URL, and the station must publish current-track metadata. HLS and other
+  stream formats may need separate handling.
 - MusicBrainz is used to enrich recognised tracks, not to identify audio by itself.
 - AudioTag is not included because a stable, documented free app API has not been verified.
 - Google Song Search and ShazamKit are excluded from the free-only implementation.
