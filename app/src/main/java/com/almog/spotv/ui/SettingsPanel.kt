@@ -136,20 +136,13 @@ fun SettingsPanel(
             }
             SettingRow(
                 "Lyrics style", if (style == "kinetic") "Kinetic" else "Classic", s, focusRequester = first,
-                note = "Kinetic: words move the way they are sung, with depth, beat pulse and verse posters.",
+                note = "Kinetic: one huge line at a time; each word lights up as it is sung.",
                 onLeft = { toggleStyle() }, onRight = { toggleStyle() },
             )
             if (style == "kinetic") {
                 SettingRow("Beat pulse", if (beatPulse) "On" else "Off", s,
                     onLeft = { beatPulse = !beatPulse; flip(TvPrefs.BEAT_PULSE, beatPulse) },
                     onRight = { beatPulse = !beatPulse; flip(TvPrefs.BEAT_PULSE, beatPulse) })
-                SettingRow("Verse posters", if (poster) "On" else "Off", s,
-                    onLeft = { poster = !poster; flip(TvPrefs.POSTER, poster) },
-                    onRight = { poster = !poster; flip(TvPrefs.POSTER, poster) })
-                SettingRow("Depth blur", if (depthBlur) "On" else "Off", s,
-                    note = "Blurs lines far from the current one (Android 12+ TVs).",
-                    onLeft = { depthBlur = !depthBlur; flip(TvPrefs.DEPTH_BLUR, depthBlur) },
-                    onRight = { depthBlur = !depthBlur; flip(TvPrefs.DEPTH_BLUR, depthBlur) })
                 SettingRow("Living background", if (livingBg) "On" else "Off", s,
                     onLeft = { livingBg = !livingBg; flip(TvPrefs.LIVING_BG, livingBg) },
                     onRight = { livingBg = !livingBg; flip(TvPrefs.LIVING_BG, livingBg) })

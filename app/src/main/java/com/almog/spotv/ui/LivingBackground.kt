@@ -30,7 +30,7 @@ fun LivingBackground(
         val energy = beat.energy(pos)
         val pulse = if (pulseEnabled) beat.pulse(pos) else 0f
         // The song's own clock drives the motion, so it freezes while paused and follows seeks.
-        val t = pos / 1000f * (0.05f + 0.07f * energy)
+        val t = pos / 1000f * (0.008f + 0.008f * energy)
         val w = size.width
         val h = size.height
         val n = 4
@@ -42,7 +42,7 @@ fun LivingBackground(
             val c = colors[i % colors.size]
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(c.copy(alpha = 0.5f + 0.3f * energy + 0.15f * pulse), Color.Transparent),
+                    listOf(c.copy(alpha = 0.38f + 0.12f * energy + 0.08f * pulse), Color.Transparent),
                     center = Offset(cx, cy), radius = r,
                 ),
                 radius = r, center = Offset(cx, cy),
