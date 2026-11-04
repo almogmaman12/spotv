@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">SpotTV</string>
+    <string name="accessibility_song_metadata_description">Optionally read visible song titles and artist names from other apps on this TV. Text is processed locally and is not uploaded by this service.</string>
 </resources>
