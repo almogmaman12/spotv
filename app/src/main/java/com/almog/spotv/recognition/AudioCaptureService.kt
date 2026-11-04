@@ -85,7 +85,8 @@ class AudioCaptureService : Service() {
                 projection = manager.getMediaProjection(resultCode, resultData!!)
                 projection?.registerCallback(object : MediaProjection.Callback() {
                     override fun onStop() {
-                        scope.launch { switchToMicrophone() }
+                        // Revocation is an explicit user stop. Never silently switch to microphone.
+                        scope.launch { stopCapture() }
                     }
                 }, null)
                 recorder = createInternalRecorder(projection!!)
@@ -124,8 +125,7 @@ class AudioCaptureService : Service() {
                         switchToMicrophone()
                         continue
                     }
-                    delay(2_000L)
-                    continue
+                    break
                 }
 
                 if (usingInternalAudio && isSilent(pcm)) {
