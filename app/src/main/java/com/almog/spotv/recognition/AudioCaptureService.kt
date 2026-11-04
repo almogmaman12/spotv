@@ -111,6 +111,7 @@ class AudioCaptureService : Service() {
 
     private suspend fun recognitionLoop() {
         val recognizer = ShazamIoClient()
+        val acoustId = AcoustIdBridgeClient()
         var lastRecognizedKey = ""
         var lastRecognizedAt = 0L
         try {
@@ -131,8 +132,9 @@ class AudioCaptureService : Service() {
                     continue
                 }
 
+                val wav = toWav(pcm)
                 val match = try {
-                    recognizer.recognize(toWav(pcm))
+                    recognizer.recognize(wav) ?: acoustId.recognize(wav)
                 } catch (_: Exception) {
                     null
                 }
