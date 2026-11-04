@@ -43,7 +43,7 @@ async def health() -> dict[str, str]:
 
 def _client_ip(request: Request) -> str:
     # On Render, trust its forwarded client IP. Otherwise use the direct peer.
-    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[-1].strip()
     return forwarded or (request.client.host if request.client else "unknown")
 
 
@@ -148,20 +148,27 @@ async def recognize_acoustid(request: Request, audio: UploadFile = File(...)) ->
         for recording in candidate.get("recordings", []):
             title = str(recording.get("title") or "").strip()
             artists = recording.get("artists") or []
-            artist = str(artists[0].get("name") or "").strip() if artists else ""
+            artist = "".join(
+                str(item.get("name") or "") + str(item.get("joinphrase") or "")
+                for item in artists
+            ).strip()
+            releases = recording.get("releases") or []
+            album = str(releases[0].get("title") or "").strip() if releases else ""
             if title and artist and score > best_score:
                 best_score = score
                 best = {
                     "provider": "acoustid",
                     "title": title,
                     "artist": artist,
-                    "album": "",
+                    "album": album,
                     "durationMs": 0,
                     "providerTrackId": str(recording.get("id") or ""),
                     "artworkUrl": "",
                     "trackUrl": "",
                 }
-    if best is None:
+    # Short/noisy TV samples can produce weak accidental matches. Prefer no result to a
+    # confidently wrong song; ShazamIO has already been tried before this fallback.
+    if best is None or best_score < 0.60:
         return {"matched": False, "provider": "acoustid"}
     best["confidence"] = best_score
     return {"matched": True, "track": best}
