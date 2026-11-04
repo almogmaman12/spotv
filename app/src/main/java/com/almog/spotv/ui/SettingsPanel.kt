@@ -49,6 +49,7 @@ import com.almog.spotv.lyrics.mobile.LyricsFonts
 import com.almog.spotv.lyrics.mobile.MobileLyricsSources
 import com.almog.spotv.lyrics.mobile.MobileTranslation
 import com.almog.spotv.lyrics.repository.LyricsRepository
+import com.almog.spotv.ui.RadioBrowserPanel
 
 private val Green = Color(0xFF1DB954)
 
@@ -114,6 +115,7 @@ fun SettingsPanel(
 
     var confirmLogout by remember { mutableStateOf(false) }
     var cacheCleared by remember { mutableStateOf(false) }
+    var radioBrowserOpen by remember { mutableStateOf(false) }
 
     fun <T> step(list: List<T>, current: T, delta: Int): T {
         val i = list.indexOf(current).coerceAtLeast(0)
@@ -239,6 +241,14 @@ fun SettingsPanel(
                 note = "Stops sampling and releases the microphone or internal audio capture.",
                 onClick = onStopAudioRecognition,
             )
+            SettingRow(
+                "Browse radio stations", if (radioBrowserOpen) "Close" else "Open", s,
+                note = "Search the free Radio Browser directory and open a station in a compatible player app.",
+                onClick = { radioBrowserOpen = !radioBrowserOpen },
+            )
+            if (radioBrowserOpen) {
+                RadioBrowserPanel(Modifier.fillMaxWidth())
+            }
 
             if (sources.isNotEmpty()) {
                 Header("Lyrics sources", s)
