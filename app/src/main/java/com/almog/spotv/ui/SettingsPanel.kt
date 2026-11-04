@@ -68,6 +68,7 @@ fun SettingsPanel(
     onChanged: () -> Unit,
     onLogout: () -> Unit,
     onStartAudioRecognition: () -> Unit = {},
+    onStopAudioRecognition: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -219,6 +220,11 @@ fun SettingsPanel(
                 "Start audio recognition", "Start", s,
                 note = "Requests permission to capture TV audio. If an app blocks internal capture, SpotTV falls back to the microphone. Requires a configured free recognition bridge.",
                 onClick = onStartAudioRecognition,
+            )
+            SettingRow(
+                "Stop audio recognition", "Stop", s,
+                note = "Stops sampling and releases the microphone or internal audio capture.",
+                onClick = onStopAudioRecognition,
             )
 
             if (sources.isNotEmpty()) {
