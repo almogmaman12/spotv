@@ -179,9 +179,11 @@ class MainActivity : ComponentActivity() {
                 isrc = "",
             )
         }
-        // This first stage only reads metadata. Accurate external-app playback position is not exposed
-        // consistently by every TV launcher/player, so leave the lyrics untimed rather than inventing
-        // a playback position.
+        // Use the session's playback clock when the source publishes one. Some apps expose metadata
+        // without a valid position, in which case we avoid inventing a timing anchor.
+        if (track.positionMs > 0L) {
+            lyricsVm.setPlaybackAnchor(track.positionMs, true, track.playbackSpeed)
+        }
     }
 
 
