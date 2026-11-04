@@ -10,6 +10,7 @@
 
     <!-- A TV has no touchscreen; it may or may not be a "leanback" device, so don't hard-require it. -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <application
