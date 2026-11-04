@@ -43,7 +43,7 @@ async def health() -> dict[str, str]:
 
 def _client_ip(request: Request) -> str:
     # On Render, trust its forwarded client IP. Otherwise use the direct peer.
-    forwarded = request.headers.get("x-forwarded-for", "").split(",")[-1].strip()
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
     return forwarded or (request.client.host if request.client else "unknown")
 
 
