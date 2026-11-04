@@ -29,7 +29,8 @@ class ShazamIoClient(private val baseUrl: String = BuildConfig.MUSIC_RECOGNITION
             if (title.isBlank() || artist.isBlank()) return@withContext null
             RecognizedTrack(track.optString("provider", "shazamio"), title, artist,
                 track.optString("album"), track.optLong("durationMs").coerceAtLeast(0L),
-                track.optString("providerTrackId"), track.optString("artworkUrl"), track.optString("trackUrl"))
+                track.optString("providerTrackId"), track.optString("artworkUrl"), track.optString("trackUrl"),
+                track.optLong("matchOffsetMs").coerceAtLeast(0L))
         }
     }
 
