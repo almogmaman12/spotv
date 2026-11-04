@@ -37,6 +37,19 @@
         </activity>
 
         <service
+            android:name=".recognition.AccessibilitySongMetadataService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_song_metadata" />
+        </service>
+
+        <service
             android:name=".recognition.AudioCaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection|microphone" />
