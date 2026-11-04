@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
             return
         }
         val visibleTrack = AccessibilitySongSource.track.value?.takeUnless {
-            it.packageName == "com.spotify.music"
+            it.packageName.startsWith("com.spotify.")
         }
         if (visibleTrack != null) {
             syncVisibleTextLyrics(visibleTrack)
