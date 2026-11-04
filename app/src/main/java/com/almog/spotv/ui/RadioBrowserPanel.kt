@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.almog.spotv.recognition.RadioBrowserClient
 import com.almog.spotv.recognition.RadioStation
+import com.almog.spotv.recognition.IcyStreamMetadataClient
 import kotlinx.coroutines.launch
 
 @Composable
@@ -31,9 +33,11 @@ fun RadioBrowserPanel(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val client = remember { RadioBrowserClient() }
+    val metadataClient = remember { IcyStreamMetadataClient() }
     var query by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("Search by station name, genre, or country.") }
+    var nowPlayingMessage by remember { mutableStateOf("") }
     val stations = remember { mutableStateListOf<RadioStation>() }
 
     Column(modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 12.dp)) {
@@ -65,6 +69,7 @@ fun RadioBrowserPanel(modifier: Modifier = Modifier) {
         ) { Text(if (loading) "Searching..." else "Search") }
 
         Text(message, color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
+        if (nowPlayingMessage.isNotBlank()) Text(nowPlayingMessage, color = Color(0xFF1DB954), fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
         stations.forEach { station ->
             Column(
                 Modifier.fillMaxWidth().clickable {
@@ -80,6 +85,14 @@ fun RadioBrowserPanel(modifier: Modifier = Modifier) {
                 val details = listOf(station.country, station.codec, if (station.bitrate > 0) "${station.bitrate} kbps" else "")
                     .filter { it.isNotBlank() }.joinToString(" · ")
                 if (details.isNotBlank()) Text(details, color = Color.White.copy(alpha = 0.55f), fontSize = 11.sp)
+                TextButton(onClick = {
+                    nowPlayingMessage = "Reading station metadata..."
+                    scope.launch {
+                        val current = try { metadataClient.readCurrentTrack(station) } catch (_: Exception) { null }
+                        nowPlayingMessage = if (current == null) "This station does not publish readable live track metadata."
+                            else "Now playing: ${current.artist} - ${current.title}".trim().removeSuffix(" -")
+                    }
+                }) { Text("Check current track") }
             }
         }
     }
