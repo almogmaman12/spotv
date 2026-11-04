@@ -226,12 +226,12 @@ fun SettingsPanel(
             )
             SettingRow(
                 "Start audio recognition", "Start", s,
-                note = "Requests permission for internal TV audio. If the source blocks capture, SpotTV falls back to the microphone. Requires the free recognition bridge.",
+                note = "Requests permission for internal TV audio. SpotTV sends short 12-second samples to your configured bridge, which forwards them to Shazam or AcoustID. If internal capture is blocked, it falls back to the microphone.",
                 onClick = onStartAudioRecognition,
             )
             SettingRow(
                 "Microphone-only recognition", "Start", s,
-                note = "Use this if you cancelled or cannot use internal audio capture. Requires microphone permission.",
+                note = "Uses the microphone and sends short 12-second samples to your configured bridge for Shazam or AcoustID matching.",
                 onClick = onStartMicrophoneOnly,
             )
             SettingRow(
