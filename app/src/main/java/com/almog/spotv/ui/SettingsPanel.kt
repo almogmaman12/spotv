@@ -1,6 +1,8 @@
 package com.almog.spotv.ui
 
 import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -202,6 +204,16 @@ fun SettingsPanel(
                 "Translation text size", "$notePct%", s,
                 onLeft = { notePct = (notePct - 10).coerceAtLeast(50); prefs.edit().putInt(LyricsFonts.PREF_NOTE_SIZE, notePct).apply(); onChanged() },
                 onRight = { notePct = (notePct + 10).coerceAtMost(150); prefs.edit().putInt(LyricsFonts.PREF_NOTE_SIZE, notePct).apply(); onChanged() },
+            )
+
+            if (sources.isNotEmpty()) {
+                Header("Music recognition", s)
+            SettingRow(
+                "Cross-app song metadata", "Open", s,
+                note = "Allow SpotTV in Android Notification access to read song details from other TV apps.",
+                onClick = {
+                    try { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) } catch (_: Exception) { }
+                },
             )
 
             if (sources.isNotEmpty()) {
