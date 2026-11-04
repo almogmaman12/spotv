@@ -34,15 +34,58 @@ album and duration and loads lyrics for that track. Apps that hide metadata or d
 session cannot be identified this way. Playback position is not consistently available, so this
 initial metadata integration does not claim word-perfect timing for external apps.
 
-## Planned free recognition layers
+## Free cross-app music recognition
 
-The next stages are audio-based recognition using short samples, with internal playback capture where
-the source app allows it and microphone capture as a fallback. Candidate services are ShazamIO
-(unofficial and subject to breakage), AcoustID + Chromaprint (non-commercial use), Radio Browser
-(stream metadata where provided), and MusicBrainz (metadata enrichment). AudioTag will only be added
-if a stable, permitted integration is verified. No paid recognition credentials, subscriptions,
-trials, local music database, or local matching catalogue are planned. Google Song Search and
-ShazamKit are excluded from the free-only implementation.
+The recognition work is being built in layers. The first metadata layer reads Android media sessions after
+the user enables SpotTV under Android **Notification access**. This does not record or upload audio.
+
+The opt-in audio path is also implemented:
+- SpotTV asks for microphone permission and Android's MediaProjection consent.
+- It tries Android internal playback capture first, where the playing app permits it.
+- If internal capture is blocked or returns silence, it falls back to the TV microphone.
+- It records a 12-second mono sample, not a continuous recording, and sends it to the configured
+  recognition bridge. The notification includes a Stop action.
+- A successful match is passed into the existing lyrics engine. MusicBrainz is queried to enrich
+  title/artist/album/duration when it finds a matching recording.
+
+### Free recognition bridge
+
+The `recognition-server/` folder contains an optional FastAPI service:
+- ShazamIO recognition at `POST /v1/recognize`. ShazamIO is an unofficial, reverse-engineered
+  client for Shazam, not an official API. It can break if Shazam changes its service.
+- AcoustID + Chromaprint fallback at `POST /v1/acoustid/recognize`. The server computes the
+  fingerprint using Chromaprint and looks it up through AcoustID. Register a free AcoustID client
+  key and set `ACOUSTID_CLIENT_KEY` in the bridge's environment. AcoustID's free service is for
+  non-commercial use and has rate limits.
+- Audio samples are temporarily written only while Chromaprint calculates a fingerprint, then
+  deleted. ShazamIO and AcoustID receive the sample/fingerprint for matching. The bridge does not
+  retain a music database.
+
+You can deploy the bridge using the included Render Blueprint on its free plan, or run the Docker
+container on your own server. Render's free service may sleep when idle and cold starts can delay
+the first recognition. Free hosting limits can change. The bridge is not guaranteed to remain free
+or available forever.
+
+After deployment, set `MUSIC_RECOGNITION_URL` to the bridge's HTTPS base URL in
+`local.properties` or as a GitHub Actions repository variable. Do not put the AcoustID client key
+in the APK. Set it only as `ACOUSTID_CLIENT_KEY` on the bridge.
+
+### Radio and metadata helpers
+
+- Radio Browser station search is available in the Android code.
+- ICY `StreamTitle` extraction is implemented for radio stations that publish it. Radio Browser
+  itself does not guarantee current-track metadata, and HLS/other stream formats may need separate
+  handling.
+- MusicBrainz is used to enrich recognised tracks, not to identify audio by itself.
+- AudioTag is not included because a stable, documented free app API has not been verified.
+- Google Song Search and ShazamKit are excluded from the free-only implementation.
+
+### Limitations
+
+Android internal playback capture requires user consent and the source app must allow capture.
+Some protected apps and HDMI/external inputs cannot be captured internally. Microphone fallback can
+hear TV speakers but depends on volume, room noise and speaker placement. Some stations do not
+publish song metadata. ShazamIO is unofficial, and AcoustID can miss live/noisy recordings.
 
 ## Setup
 
