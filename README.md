@@ -36,8 +36,9 @@ initial metadata integration does not claim word-perfect timing for external app
 
 ## Free cross-app music recognition
 
-The recognition work is being built in layers. The first metadata layer reads Android media sessions after
-the user enables SpotTV under Android **Notification access**. This does not record or upload audio.
+The recognition work is built in layers. One metadata layer reads Android media sessions after
+the user enables SpotTV under Android **Notification access**. An optional Accessibility fallback can
+inspect visible song-like text on-device when apps expose it. That text is not uploaded.
 
 The opt-in audio path is also implemented:
 - SpotTV asks for microphone permission and Android's MediaProjection consent.
