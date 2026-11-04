@@ -223,8 +223,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPlaybackCapture() {
-        val manager = getSystemService(MediaProjectionManager::class.java)
-        projectionPermissionLauncher.launch(manager.createScreenCaptureIntent())
+        try {
+            val manager = getSystemService(MediaProjectionManager::class.java)
+            projectionPermissionLauncher.launch(manager.createScreenCaptureIntent())
+        } catch (_: Exception) {
+            // Some TV builds do not expose MediaProjection. The already-approved microphone is fallback.
+            startAudioCaptureService(0, null)
+        }
     }
 
     private fun startAudioCaptureService(resultCode: Int, data: Intent?) {
