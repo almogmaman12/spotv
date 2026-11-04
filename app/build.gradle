@@ -32,6 +32,8 @@ android {
         buildConfigField "String", "SPOTIFY_REDIRECT_URI",
                 "\"${prop('SPOTIFY_REDIRECT_URI', 'https://almogmaman12.github.io/spotv/callback.html')}\""
         buildConfigField "String", "SPICY_LYRICS_API_KEY", "\"${prop('SPICY_LYRICS_API_KEY')}\""
+        // Optional self-hosted or free-tier ShazamIO bridge URL. Empty until configured.
+        buildConfigField "String", "MUSIC_RECOGNITION_URL", "\"${prop('MUSIC_RECOGNITION_URL')}\""
     }
 
     packaging {
