@@ -35,7 +35,7 @@ server without paying for a hosted service.
 - `POST /v1/acoustid/recognize`: Chromaprint fingerprint plus AcoustID lookup. Requires `ACOUSTID_CLIENT_KEY`.
 
 Samples are limited to 2 MiB and rate-limited per client IP. The ShazamIO route processes the sample in memory. The AcoustID route temporarily writes a WAV file for the `fpcalc` fingerprint tool, then deletes that temporary file after the lookup.
-Audio sent to the ShazamIO route is forwarded to Shazam's service for matching. Do not send audio unless the TV
+The ShazamIO route derives a Shazam audio signature from the sample and sends that signature to Shazam. The AcoustID route sends a Chromaprint fingerprint to AcoustID. Do not send audio unless the TV
 owner has explicitly enabled recognition.
 
 The Android client should submit approximately 10 to 12 seconds of audio, not a continuous stream.
