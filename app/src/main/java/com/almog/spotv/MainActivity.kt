@@ -220,6 +220,12 @@ class MainActivity : ComponentActivity() {
                 isrc = "",
             )
         }
+        // Periodic Shazam offsets re-anchor the lyric clock and correct accumulated drift.
+        if (track.positionMs > 0L) {
+            val userOffset = getSharedPreferences(Constants.PREF_NAME, MODE_PRIVATE)
+                .getInt(Constants.PREF_KEY_LYRICS_OFFSET_MS, 0)
+            lyricsVm.setPlaybackAnchor((track.positionMs + userOffset).coerceAtLeast(0L), true, 1f)
+        }
     }
 
     private fun stopAudioRecognition() {
