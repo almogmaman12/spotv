@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
         }
         // Spotify's own session is handled by the Spotify API below, which provides playback position.
         val externalTrack = MediaSessionSongSource.track.value?.takeUnless {
-            it.packageName == "com.spotify.music"
+            it.packageName.startsWith("com.spotify.")
         }
         if (externalTrack != null) {
             syncExternalLyrics(externalTrack)
