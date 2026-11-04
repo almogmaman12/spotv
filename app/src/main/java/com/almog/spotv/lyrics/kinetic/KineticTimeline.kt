@@ -79,6 +79,9 @@ class KineticTimeline(
         return found
     }
 
+    /** Which verse / chorus is current at [posMs] (0 before the first). */
+    fun stanzaAt(posMs: Long): Int = stanzas.indexOfLast { posMs >= it.startMs - 500L }.coerceAtLeast(0)
+
     /** The stanza whose poster should be up at [posMs], if any. */
     fun posterAt(posMs: Long): Stanza? =
         stanzas.firstOrNull { it.hasPoster && posMs >= it.posterStartMs && posMs < it.posterStartMs + it.posterHoldMs }

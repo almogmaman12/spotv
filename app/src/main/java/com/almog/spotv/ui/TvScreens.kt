@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -325,8 +326,13 @@ private fun NowPlayingScreen(
                     val beat = remember(lyricState.track) {
                         lyricState.track?.let { Beats.fromLyrics(it) } ?: FlatBeatClock()
                     }
+                    val timeline = remember(lyricState.track) {
+                        lyricState.track?.let { com.almog.spotv.lyrics.kinetic.KineticTimelineBuilder.build(it) }
+                    }
+                    val section by remember(timeline) { derivedStateOf { timeline?.stanzaAt(clock()) ?: 0 } }
                     if (livingBg && cover != null) {
                         LivingBackground(
+                            section = section,
                             palette = cover.palette, beat = beat, positionMs = clock,
                             pulseEnabled = tvPrefs.getBoolean(TvPrefs.BEAT_PULSE, false),
                         )

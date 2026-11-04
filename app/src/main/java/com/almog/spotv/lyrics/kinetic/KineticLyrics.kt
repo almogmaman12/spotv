@@ -195,12 +195,6 @@ fun KineticLyrics(
                                 ) {
                                     for (w in words) StageWord(w, sp, family, positionMs, beat, pulseOn, accent)
                                 }
-                                for (bg in entry.backgrounds) {
-                                    val bgWords = remember(bg) { wordsOf(bg, beat.periodMs) }
-                                    FlowRow(Modifier.fillMaxWidth().padding(top = (sp * 0.12f).dp), horizontalArrangement = Arrangement.Start) {
-                                        for (w in bgWords) StageWord(w, sp * 0.45f, family, positionMs, beat, false, accent)
-                                    }
-                                }
                                 entry.lead.translation?.takeIf { it.isNotBlank() }?.let {
                                     Text(
                                         it, color = Color.White.copy(alpha = 0.55f), fontSize = (sp * 0.34f).sp,
@@ -208,6 +202,23 @@ fun KineticLyrics(
                                     )
                                 }
                                 LineTimer(entry, positionMs, accent, sp)
+                            }
+                            if (entry.backgrounds.isNotEmpty()) {
+                                // Backing vocals ("ooh", echoes) float in the corner, small and slanted.
+                                Column(
+                                    Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(top = screenH * 0.14f, end = screenW * 0.06f)
+                                        .fillMaxWidth(0.4f),
+                                    horizontalAlignment = Alignment.End,
+                                ) {
+                                    for (bg in entry.backgrounds) {
+                                        val bgWords = remember(bg) { wordsOf(bg, beat.periodMs) }
+                                        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                            for (w in bgWords) StageWord(w, baseSp * 0.7f, family, positionMs, beat, false, accent, italic = true)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -257,11 +268,16 @@ private fun StageWord(
     beat: BeatClock,
     pulseOn: Boolean,
     accent: Color,
+    italic: Boolean = false,
 ) {
     val pose = remember { WordPose() }
     val style = androidx.compose.ui.text.TextStyle(
         fontSize = sp.sp, fontWeight = FontWeight.ExtraBold, fontFamily = family, lineHeight = (sp * 1.02f).sp,
+        fontStyle = if (italic) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
     )
+    val letters = remember(w) {
+        if (w.motion == Motion.Held && w.endMs - w.startMs >= 700L && !italic) com.almog.spotv.lyrics.model.extractGraphemeClusters(w.text) else emptyList()
+    }
     Box(
         Modifier
             .padding(end = (sp * 0.24f).dp)
@@ -278,18 +294,50 @@ private fun StageWord(
                 transformOrigin = TransformOrigin(0.5f, 0.85f)
             },
     ) {
-        Text(w.text, style = style, color = Color.White, softWrap = false)
-        Text(
-            w.text, style = style, color = accent, softWrap = false,
-            modifier = Modifier.graphicsLayer {
-                val pos = positionMs()
-                alpha = when {
-                    pos < w.startMs -> 0f
-                    pos <= w.endMs + 120L -> 1f
-                    else -> 1f - ((pos - w.endMs - 120L) / 350f).coerceIn(0f, 1f)
+        if (letters.size >= 2) {
+            // A held note: the light and a small lift travel through the letters as it is sung.
+            androidx.compose.foundation.layout.Row {
+                val n = letters.size
+                letters.forEachIndexed { i, ch ->
+                    val ls = w.startMs + (w.endMs - w.startMs) * i / n
+                    Box(
+                        Modifier.graphicsLayer {
+                            val q = ((positionMs() - ls) / (0.4f * (w.endMs - w.startMs))).coerceIn(0f, 1f)
+                            val lift = kotlin.math.sin(Math.PI.toFloat() * q)
+                            translationY = -lift * sp.sp.toPx() * 0.07f
+                            val sc = 1f + 0.08f * lift
+                            scaleX = sc; scaleY = sc
+                        },
+                    ) {
+                        Text(ch, style = style, color = Color.White, softWrap = false)
+                        Text(
+                            ch, style = style, color = accent, softWrap = false,
+                            modifier = Modifier.graphicsLayer {
+                                val pos = positionMs()
+                                alpha = when {
+                                    pos < ls -> 0f
+                                    pos <= w.endMs + 120L -> 1f
+                                    else -> 1f - ((pos - w.endMs - 120L) / 350f).coerceIn(0f, 1f)
+                                }
+                            },
+                        )
+                    }
                 }
-            },
-        )
+            }
+        } else {
+            Text(w.text, style = style, color = Color.White, softWrap = false)
+            Text(
+                w.text, style = style, color = accent, softWrap = false,
+                modifier = Modifier.graphicsLayer {
+                    val pos = positionMs()
+                    alpha = when {
+                        pos < w.startMs -> 0f
+                        pos <= w.endMs + 120L -> 1f
+                        else -> 1f - ((pos - w.endMs - 120L) / 350f).coerceIn(0f, 1f)
+                    }
+                },
+            )
+        }
     }
 }
 

@@ -3,6 +3,7 @@ package com.almog.spotv.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -22,9 +23,14 @@ fun LivingBackground(
     beat: BeatClock,
     positionMs: () -> Long,
     pulseEnabled: Boolean,
+    section: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val colors = if (palette.size >= 3) palette else (palette + palette + palette).take(3).ifEmpty { listOf(Color(0xFF1DB954)) }
+    // Each verse / chorus shifts the colours along the cover's palette.
+    val shift by androidx.compose.animation.core.animateFloatAsState(
+        section.toFloat(), androidx.compose.animation.core.tween(3000), label = "section",
+    )
     Canvas(modifier.fillMaxSize()) {
         val pos = positionMs()
         val energy = beat.energy(pos)
@@ -39,7 +45,9 @@ fun LivingBackground(
             val cx = w * (0.5f + 0.38f * sin(a * 0.9f + i))
             val cy = h * (0.5f + 0.34f * cos(a * 0.7f + i * 2f))
             val r = (w * (0.34f + 0.05f * i) ) * (1f + 0.06f * pulse + 0.1f * energy)
-            val c = colors[i % colors.size]
+            val ci = i + shift
+            val k0 = kotlin.math.floor(ci).toInt()
+            val c = androidx.compose.ui.graphics.lerp(colors[Math.floorMod(k0, colors.size)], colors[Math.floorMod(k0 + 1, colors.size)], ci - k0)
             drawCircle(
                 brush = Brush.radialGradient(
                     listOf(c.copy(alpha = 0.38f + 0.12f * energy + 0.08f * pulse), Color.Transparent),
