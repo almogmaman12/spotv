@@ -1,11 +1,19 @@
 package com.almog.spotv
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
+import android.widget.Toast
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -16,6 +24,9 @@ import com.almog.spotv.lyrics.viewmodel.LyricsViewModel
 import com.almog.spotv.spotify.NowPlaying
 import com.almog.spotv.spotify.QueueItem
 import com.almog.spotv.ui.TvRoot
+import com.almog.spotv.recognition.AudioCaptureService
+import com.almog.spotv.recognition.RecognizedTrackSource
+import com.almog.spotv.recognition.RecognizedTrack
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -28,6 +39,17 @@ class MainActivity : ComponentActivity() {
     private var lastTrackId: String? = null
     private val prefetched = LinkedHashSet<String>()
 
+    private val microphonePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) requestPlaybackCapture()
+            else Toast.makeText(this, "Microphone permission is required for fallback recognition.", Toast.LENGTH_LONG).show()
+        }
+
+    private val projectionPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            startAudioCaptureService(result.resultCode, result.data)
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -38,7 +60,7 @@ class MainActivity : ComponentActivity() {
         }
         seedLyricsFontSize()
 
-        setContent { TvRoot(tv, lyricsVm) }
+        setContent { TvRoot(tv, lyricsVm, onStartAudioRecognition = { startAudioRecognition() }) }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -50,6 +72,7 @@ class MainActivity : ComponentActivity() {
                 }
                 launch { tv.player.state.collect { syncLyrics(it) } }
                 launch { tv.player.queue.collect { prefetchLyrics(it) } }
+                launch { RecognizedTrackSource.track.collectLatest { syncLyrics(tv.player.state.value) } }
                 // Local Android media-session metadata takes priority when another TV app is playing.
                 launch {
                     MediaSessionSongSource.track.collectLatest {
@@ -79,6 +102,11 @@ class MainActivity : ComponentActivity() {
         val externalTrack = MediaSessionSongSource.track.value
         if (externalTrack != null) {
             syncExternalLyrics(externalTrack)
+            return
+        }
+        val recognizedTrack = RecognizedTrackSource.track.value
+        if (recognizedTrack != null) {
+            syncRecognizedLyrics(recognizedTrack)
             return
         }
 
@@ -127,6 +155,54 @@ class MainActivity : ComponentActivity() {
         // This first stage only reads metadata. Accurate external-app playback position is not exposed
         // consistently by every TV launcher/player, so leave the lyrics untimed rather than inventing
         // a playback position.
+    }
+
+
+    private fun syncRecognizedLyrics(track: RecognizedTrack) {
+        val key = "recognized:${track.artist}:${track.title}"
+        if (key != lastTrackId) {
+            lastTrackId = key
+            lyricsVm.clearLyrics()
+            lyricsVm.loadLyrics(
+                artist = track.artist,
+                title = track.title,
+                album = track.album,
+                durationMs = track.durationMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                mediaSource = "audio-recognition",
+                trackId = key,
+                isrc = "",
+            )
+        }
+    }
+
+    private fun startAudioRecognition() {
+        if (BuildConfig.MUSIC_RECOGNITION_URL.isBlank()) {
+            Toast.makeText(this, "Set MUSIC_RECOGNITION_URL in local.properties or GitHub Actions secrets first.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            requestPlaybackCapture()
+        }
+    }
+
+    private fun requestPlaybackCapture() {
+        val manager = getSystemService(MediaProjectionManager::class.java)
+        projectionPermissionLauncher.launch(manager.createScreenCaptureIntent())
+    }
+
+    private fun startAudioCaptureService(resultCode: Int, data: Intent?) {
+        val service = Intent(this, AudioCaptureService::class.java).apply {
+            action = AudioCaptureService.ACTION_START
+            putExtra(AudioCaptureService.EXTRA_RESULT_CODE, resultCode)
+            if (data != null) putExtra(AudioCaptureService.EXTRA_RESULT_DATA, data)
+        }
+        try {
+            ContextCompat.startForegroundService(this, service)
+        } catch (_: Exception) {
+            Toast.makeText(this, "Could not start audio recognition on this TV.", Toast.LENGTH_LONG).show()
+        }
     }
 
     /** Fetch the next few songs' lyrics early so skipping starts with lyrics ready. */
