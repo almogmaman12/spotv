@@ -23,7 +23,7 @@ class AcoustIdBridgeClient(
             .addFormDataPart("audio", "sample.wav", sample.toRequestBody("audio/wav".toMediaType())).build()
         val request = Request.Builder().url("$root/v1/acoustid/recognize").post(body)
             .header("Accept", "application/json").build()
-        http.newCall(request).execute().use { response ->
+        http.newCall(request).awaitResponse().use { response ->
             if (!response.isSuccessful) return@withContext null
             val json = JSONObject(response.body?.string().orEmpty())
             if (!json.optBoolean("matched")) return@withContext null
