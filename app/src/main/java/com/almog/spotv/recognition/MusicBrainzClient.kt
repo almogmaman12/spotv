@@ -24,7 +24,7 @@ class MusicBrainzClient(private val http: OkHttpClient = defaultHttp) {
             val encoded = URLEncoder.encode(query, StandardCharsets.UTF_8.name())
             val request = Request.Builder().url("https://musicbrainz.org/ws/2/recording/?query=$encoded&fmt=json&limit=5")
                 .header("User-Agent", "SpotTV/0.1.0 (https://github.com/almogmaman12/spotv)").build()
-            http.newCall(request).execute().use { response ->
+            http.newCall(request).awaitResponse().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 val recordings = JSONObject(response.body?.string().orEmpty()).optJSONArray("recordings") ?: return@withContext null
                 var selected: JSONObject? = null
