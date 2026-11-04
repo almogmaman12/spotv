@@ -25,7 +25,7 @@ class AccessibilitySongMetadataService : AccessibilityService() {
         val packageName = event.packageName?.toString().orEmpty()
         if (packageName.isBlank() || packageName == this.packageName) return
 
-        val root = rootInActiveWindow ?: return
+        val root = rootInActiveWindow ?: run { AccessibilitySongSource.publish(null); return }
         try {
             val texts = ArrayList<String>()
             collectVisibleText(root, texts, 0)
@@ -33,7 +33,7 @@ class AccessibilitySongMetadataService : AccessibilityService() {
                 .mapNotNull(::parseTrackText)
                 .firstOrNull()
             AccessibilitySongSource.publish(candidate?.let {
-                VisibleTextTrack(packageName, it.second, it.first)
+                VisibleTextTrack(packageName, it.first, it.second)
             })
         } finally {
             @Suppress("DEPRECATION")
