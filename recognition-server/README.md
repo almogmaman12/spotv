@@ -19,7 +19,8 @@ server without paying for a hosted service.
 ## API
 
 - `GET /health`: health check.
-- `POST /v1/recognize`: multipart upload with field `audio`, accepting a short audio sample.
+- `POST /v1/recognize`: ShazamIO match from a short audio sample.
+- `POST /v1/acoustid/recognize`: Chromaprint fingerprint plus AcoustID lookup. Requires `ACOUSTID_CLIENT_KEY`.
 
 Samples are limited to 2 MiB and rate-limited per client IP. The server does not save samples to disk.
 Audio is sent onward to Shazam's service by ShazamIO for matching. Do not send audio unless the TV
