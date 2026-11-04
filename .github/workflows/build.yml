@@ -21,6 +21,7 @@ jobs:
           # Optional: add these as repository secrets to get an APK that can log in / fetch lyrics.
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPICY_LYRICS_API_KEY: ${{ secrets.SPICY_LYRICS_API_KEY }}
+          MUSIC_RECOGNITION_URL: ${{ vars.MUSIC_RECOGNITION_URL }}
       # SpicyLyricsJsonTest.backgroundLine_attachesToOverlappingLead_andOrphanIsPromoted also fails in
       # SpotifyTablet (the engine code is identical), so the tests report but don't block the APK.
       - name: Unit tests
