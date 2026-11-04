@@ -217,6 +217,13 @@ fun SettingsPanel(
                 },
             )
             SettingRow(
+                "Visible song text fallback", "Open", s,
+                note = "Optional Accessibility access. SpotTV checks visible text on-device for song titles and artists; it does not upload that text.",
+                onClick = {
+                    try { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } catch (_: Exception) { }
+                },
+            )
+            SettingRow(
                 "Start audio recognition", "Start", s,
                 note = "Requests permission to capture TV audio. If an app blocks internal capture, SpotTV falls back to the microphone. Requires a configured free recognition bridge.",
                 onClick = onStartAudioRecognition,
