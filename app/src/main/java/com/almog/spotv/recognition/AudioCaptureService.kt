@@ -145,7 +145,7 @@ class AudioCaptureService : Service() {
                 if (match != null) {
                     val key = "${match.artist.lowercase()}:${match.title.lowercase()}"
                     val now = System.currentTimeMillis()
-                    if (key != lastRecognizedKey || now - lastRecognizedAt > SAME_TRACK_REFRESH_MS) {
+                    if (key != lastRecognizedKey) {
                         val enriched = try {
                             musicBrainz.enrich(match.title, match.artist)
                         } catch (cancel: CancellationException) {
@@ -163,11 +163,16 @@ class AudioCaptureService : Service() {
                         } else match
                         RecognizedTrackSource.publish(finalTrack)
                         lastRecognizedKey = key
-                        lastRecognizedAt = now
                     }
+                    lastRecognizedAt = now
                     updateNotification("Recognized: ${match.artist} - ${match.title}")
                     delay(CHANGE_CHECK_INTERVAL_MS)
                 } else {
+                    if (lastRecognizedKey.isNotBlank() && System.currentTimeMillis() - lastRecognizedAt > NO_MATCH_CLEAR_MS) {
+                        RecognizedTrackSource.publish(null)
+                        lastRecognizedKey = ""
+                        lastRecognizedAt = 0L
+                    }
                     updateNotification(if (usingInternalAudio) "Listening to TV audio" else "Listening through microphone")
                     delay(NO_MATCH_INTERVAL_MS)
                 }
@@ -351,7 +356,7 @@ class AudioCaptureService : Service() {
         private const val SILENCE_RMS_THRESHOLD = 110.0
         private const val NO_MATCH_INTERVAL_MS = 5_000L
         private const val CHANGE_CHECK_INTERVAL_MS = 12_000L
-        private const val SAME_TRACK_REFRESH_MS = 180_000L
+        private const val NO_MATCH_CLEAR_MS = 60_000L
     }
 }
 
