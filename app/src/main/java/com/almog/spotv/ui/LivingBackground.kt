@@ -36,7 +36,8 @@ fun LivingBackground(
         val energy = beat.energy(pos)
         val pulse = if (pulseEnabled) beat.pulse(pos) else 0f
         // The song's own clock drives the motion, so it freezes while paused and follows seeks.
-        val t = pos / 1000f * (0.008f + 0.008f * energy)
+        // A fixed, very slow drift. (Scaling time by the energy made the blobs jump whenever it changed.)
+        val t = pos / 1000f * 0.007f
         val w = size.width
         val h = size.height
         val n = 4
