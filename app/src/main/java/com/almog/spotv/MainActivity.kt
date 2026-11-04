@@ -40,16 +40,25 @@ class MainActivity : ComponentActivity() {
 
     private var lastTrackId: String? = null
     private val prefetched = LinkedHashSet<String>()
+    private var microphoneOnlyRequested = false
 
     private val microphonePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) requestPlaybackCapture()
-            else Toast.makeText(this, "Microphone permission is required for fallback recognition.", Toast.LENGTH_LONG).show()
+            if (granted) {
+                if (microphoneOnlyRequested) startAudioCaptureService(0, null) else requestPlaybackCapture()
+            } else {
+                microphoneOnlyRequested = false
+                Toast.makeText(this, "Microphone permission is required for recognition.", Toast.LENGTH_LONG).show()
+            }
         }
 
     private val projectionPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            startAudioCaptureService(result.resultCode, result.data)
+            if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+                startAudioCaptureService(result.resultCode, result.data)
+            } else {
+                Toast.makeText(this, "Internal audio capture was cancelled. Choose microphone-only if you still want to continue.", Toast.LENGTH_LONG).show()
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,7 +71,7 @@ class MainActivity : ComponentActivity() {
         }
         seedLyricsFontSize()
 
-        setContent { TvRoot(tv, lyricsVm, onStartAudioRecognition = { startAudioRecognition() }, onStopAudioRecognition = { stopAudioRecognition() }) }
+        setContent { TvRoot(tv, lyricsVm, onStartAudioRecognition = { startAudioRecognition() }, onStartMicrophoneOnly = { startMicrophoneOnlyRecognition() }, onStopAudioRecognition = { stopAudioRecognition() }) }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -210,11 +219,26 @@ class MainActivity : ComponentActivity() {
         stopService(Intent(this, AudioCaptureService::class.java))
     }
 
+    private fun startMicrophoneOnlyRecognition() {
+        if (BuildConfig.MUSIC_RECOGNITION_URL.isBlank()) {
+            Toast.makeText(this, "Set MUSIC_RECOGNITION_URL in local.properties or GitHub Actions variables first.", Toast.LENGTH_LONG).show()
+            return
+        }
+        microphoneOnlyRequested = true
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        } else {
+            microphoneOnlyRequested = false
+            startAudioCaptureService(0, null)
+        }
+    }
+
     private fun startAudioRecognition() {
         if (BuildConfig.MUSIC_RECOGNITION_URL.isBlank()) {
             Toast.makeText(this, "Set MUSIC_RECOGNITION_URL in local.properties or GitHub Actions secrets first.", Toast.LENGTH_LONG).show()
             return
         }
+        microphoneOnlyRequested = false
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         } else {
