@@ -20,6 +20,8 @@ data class ExternalPlayingTrack(
     val artist: String,
     val album: String,
     val durationMs: Long,
+    val positionMs: Long = 0L,
+    val playbackSpeed: Float = 1f,
 ) {
     val key: String
         get() = "$packageName:$artist:$title"
@@ -75,14 +77,14 @@ class MediaSessionAccessService : NotificationListenerService() {
         }
 
         val selected = sessions.firstNotNullOfOrNull { controller ->
-            val state = controller.playbackState?.state
-            if (state != android.media.session.PlaybackState.STATE_PLAYING) return@firstNotNullOfOrNull null
-            controller.toExternalTrack()
+            val playback = controller.playbackState
+            if (playback?.state != android.media.session.PlaybackState.STATE_PLAYING) return@firstNotNullOfOrNull null
+            controller.toExternalTrack(playback.position, playback.playbackSpeed)
         }
         MediaSessionSongSource.publish(selected)
     }
 
-    private fun MediaController.toExternalTrack(): ExternalPlayingTrack? {
+    private fun MediaController.toExternalTrack(positionMs: Long, playbackSpeed: Float): ExternalPlayingTrack? {
         val metadata: MediaMetadata = metadata ?: return null
         val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.trim().orEmpty()
         val artist = (
@@ -97,6 +99,8 @@ class MediaSessionAccessService : NotificationListenerService() {
             artist = artist,
             album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty(),
             durationMs = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION).coerceAtLeast(0L),
+            positionMs = positionMs.coerceAtLeast(0L),
+            playbackSpeed = playbackSpeed,
         )
     }
 
