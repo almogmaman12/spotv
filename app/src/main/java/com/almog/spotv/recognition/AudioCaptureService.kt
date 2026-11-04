@@ -68,16 +68,12 @@ class AudioCaptureService : Service() {
         val hasProjection = resultCode == Activity.RESULT_OK && resultData != null
 
         try {
-            startForeground(
-                NOTIFICATION_ID,
-                buildNotification("Starting music recognition"),
-                if (hasProjection) {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                } else {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                },
-            )
+            val foregroundTypes = when {
+                Build.VERSION.SDK_INT < 30 -> if (hasProjection) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION else 0
+                hasProjection -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                else -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            }
+            startForeground(NOTIFICATION_ID, buildNotification("Starting music recognition"), foregroundTypes)
         } catch (_: Exception) {
             stopSelf()
             return START_NOT_STICKY
@@ -329,7 +325,7 @@ class AudioCaptureService : Service() {
         private const val CHANNEL_ID = "spottv_music_recognition"
         private const val NOTIFICATION_ID = 4210
         private const val SAMPLE_RATE = 44_100
-        private const val SAMPLE_SECONDS = 10
+        private const val SAMPLE_SECONDS = 12
         private const val SAMPLE_BYTES = SAMPLE_RATE * SAMPLE_SECONDS * 2
         private const val SILENCE_RMS_THRESHOLD = 110.0
         private const val NO_MATCH_INTERVAL_MS = 5_000L
