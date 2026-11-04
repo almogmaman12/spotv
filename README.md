@@ -19,6 +19,31 @@ calendar, Jellyfin, settings pages...) is gone.
 - The remote's own media keys (play/pause, next, previous, rewind, fast-forward, stop) work anywhere.
 - Login happens on your phone (scan a QR code), so you never type a password with a TV remote.
 
+## Cross-app music metadata (new)
+
+SpotTV can now read the metadata that another Android TV app publishes through an Android media
+session. This is the first recognition layer and does not capture or upload audio.
+
+1. On the TV, open Android Settings.
+2. Find **Apps** or **Special app access**.
+3. Open **Notification access** / **Notification listener access**.
+4. Enable access for **SpotTV**.
+
+When a supported app publishes an active playing media session, SpotTV reads its title, artist,
+album and duration and loads lyrics for that track. Apps that hide metadata or do not publish a media
+session cannot be identified this way. Playback position is not consistently available, so this
+initial metadata integration does not claim word-perfect timing for external apps.
+
+## Planned free recognition layers
+
+The next stages are audio-based recognition using short samples, with internal playback capture where
+the source app allows it and microphone capture as a fallback. Candidate services are ShazamIO
+(unofficial and subject to breakage), AcoustID + Chromaprint (non-commercial use), Radio Browser
+(stream metadata where provided), and MusicBrainz (metadata enrichment). AudioTag will only be added
+if a stable, permitted integration is verified. No paid recognition credentials, subscriptions,
+trials, local music database, or local matching catalogue are planned. Google Song Search and
+ShazamKit are excluded from the free-only implementation.
+
 ## Setup
 
 1. **Spotify app.** Create one at <https://developer.spotify.com/dashboard>. Add this Redirect URI:
@@ -53,7 +78,8 @@ for example with `adb shell`. An on-screen setting is a good next step.
 - `lyrics/` - the lyrics engine, copied unchanged from SpotifyTablet (package renamed).
 - `spotify/` - login (`SpotifyAuth`, `PairingServer`), Web API client, polling + commands.
 - `ui/` - the TV screens, focusable controls, cover loading.
-- `MainActivity.kt` - wires the player to the lyrics engine and handles the remote's media keys.
+- `MainActivity.kt` - wires Spotify and Android media-session metadata to the lyrics engine and
+  handles the remote's media keys.
 
 ## Licence notes
 
