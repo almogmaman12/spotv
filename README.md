@@ -36,8 +36,8 @@ clock when the source provides one.
 
 ## Free cross-app music recognition
 
-The recognition work is built in layers. One metadata layer reads Android media sessions after
-the user enables SpotTV under Android **Notification access**. An optional Accessibility fallback can
+The recognition work is built in layers. One metadata layer reads Android media sessions and media-style
+notifications after the user enables SpotTV under Android **Notification access**. An optional Accessibility fallback can
 inspect visible song-like text on-device when apps expose it. That text is not uploaded.
 
 The opt-in audio path is also implemented:
