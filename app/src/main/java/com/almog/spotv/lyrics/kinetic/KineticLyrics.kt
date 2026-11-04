@@ -33,6 +33,8 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -173,7 +175,7 @@ fun KineticLyrics(
                         // Big, but never more than about three rows: size from the amount of text.
                         val area = screenW.value * 0.84f * screenH.value * 0.46f
                         val fit = sqrt(area / (max(text.length, 8) * 0.6f * 1.25f))
-                        val sp = fit.coerceIn(baseSp * 1.1f, baseSp * 2.6f)
+                        val sp = fit.coerceIn(baseSp * 1.1f, baseSp * 2.6f) * (1f + 0.12f * entry.emphasis)
                         val words = remember(entry, beat.periodMs) { wordsOf(entry.lead, beat.periodMs) }
                         val rtl = remember(entry) { RtlDetector.isRtl(text) }
                         androidx.compose.runtime.CompositionLocalProvider(
@@ -188,6 +190,9 @@ fun KineticLyrics(
                                         // Once a line is done it settles back a little, so the eye moves on.
                                         val d = ((positionMs() - entry.endMs - 1500L) / 2000f).coerceIn(0f, 1f)
                                         alpha = 1f - 0.5f * d
+                                        // A slow drift across the length of the line keeps the screen alive.
+                                        val prog = ((positionMs() - entry.startMs).toFloat() / (entry.endMs - entry.startMs).coerceAtLeast(500L)).coerceIn(0f, 1f)
+                                        translationX = (0.5f - prog) * 16.dp.toPx()
                                     }
                                     .padding(horizontal = screenW * 0.07f),
                                 horizontalAlignment = Alignment.Start,
@@ -296,10 +301,13 @@ private fun StageWord(
             .graphicsLayer {
                 val pos = positionMs()
                 val t = ((pos - w.startMs + 700L) / 800f).coerceIn(0f, 1f)
-                val e = 1f - (1f - t) * (1f - t) * (1f - t) * (1f - t)
+                // Rises with a very small overshoot, then settles: alive, not bouncy.
+                val u = t - 1f
+                val back = 1f + 2.1f * u * u * u + 1.1f * u * u
+                val e = (t * 2.4f).coerceIn(0f, 1f)
                 WordMotion.pose(w.motion, pos - w.startMs, w.endMs - w.startMs, if (pulseOn) beat.pulse(pos) else 0f, pose)
                 alpha = e
-                translationY = (1f - e) * sp.sp.toPx() * 0.35f
+                translationY = (1f - back) * sp.sp.toPx() * 0.38f
                 scaleX = pose.scaleX
                 scaleY = pose.scaleY
                 transformOrigin = TransformOrigin(0.5f, 0.85f)
@@ -318,7 +326,7 @@ private fun StageWord(
                             translationY = -lift * sp.sp.toPx() * 0.05f
                         },
                     ) {
-                        LitText(ch, style, glowStyle, positionMs, ls, w.endMs)
+                        LitText(ch, style, glowStyle, positionMs, ls, w.startMs + (w.endMs - w.startMs) * (i + 1) / n)
                     }
                 }
             }
@@ -341,7 +349,28 @@ private fun LitText(
     Text(text, style = style, color = Color.White.copy(alpha = 0.45f), softWrap = false)
     Text(
         text, style = style, color = Color.White, softWrap = false,
-        modifier = Modifier.graphicsLayer { alpha = ((positionMs() - startMs) / 180f).coerceIn(0f, 1f) },
+        modifier = Modifier
+            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                // The light travels through the word at exactly the pace it is sung.
+                val dur = (endMs - startMs).coerceAtLeast(140L)
+                val f = ((positionMs() - startMs).toFloat() / dur).coerceIn(0f, 1f)
+                if (f < 1f) {
+                    val edge = 0.35f
+                    val head = f * (1f + edge)
+                    val rtl = layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl
+                    val brush = Brush.horizontalGradient(
+                        0f to Color.White,
+                        (head - edge).coerceIn(0f, 1f) to Color.White,
+                        head.coerceIn(0f, 1f) to Color.Transparent,
+                        1f to Color.Transparent,
+                        startX = if (rtl) size.width else 0f,
+                        endX = if (rtl) 0f else size.width,
+                    )
+                    drawRect(brush, blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                }
+            },
     )
     Text(
         text, style = glowStyle, color = Color.White, softWrap = false,

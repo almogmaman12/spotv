@@ -242,6 +242,7 @@ class WordPose {
 object WordMotion {
     private const val PRE_ROLL_MS = 120L
     private const val POP_MS = 280f
+    private const val HIT_MS = 480L
 
     fun classify(text: String, durationMs: Long, beatPeriodMs: Float): Motion {
         val t = text.trim()
@@ -284,9 +285,11 @@ object WordMotion {
         val k = ease * settle
         when (motion) {
             Motion.Normal -> {
-                val sc = 1f + 0.03f * k
+                // A soft "hit" as the word is sung: a smooth swell and settle, nothing sharp.
+                val h = if (elapsedMs in 0L..HIT_MS) sin(PI.toFloat() * elapsedMs / HIT_MS) else 0f
+                val sc = 1f + 0.07f * h
                 pose.scaleX = sc; pose.scaleY = sc
-                pose.glow = 0.3f * k
+                pose.dyEm = -0.05f * h
             }
             Motion.Held -> {
                 pose.scaleX = 1f + 0.07f * k
