@@ -30,9 +30,9 @@ session. This is the first recognition layer and does not capture or upload audi
 4. Enable access for **SpotTV**.
 
 When a supported app publishes an active playing media session, SpotTV reads its title, artist,
-album and duration and loads lyrics for that track. Apps that hide metadata or do not publish a media
-session cannot be identified this way. Playback position is not consistently available, so this
-initial metadata integration does not claim word-perfect timing for external apps.
+album, duration and playback position when available, then loads lyrics for that track. Apps that hide
+metadata or do not publish a media session cannot be identified this way. Timing follows the session
+clock when the source provides one.
 
 ## Free cross-app music recognition
 
