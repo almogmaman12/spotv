@@ -21,7 +21,6 @@ import android.os.IBinder
 import com.almog.spotv.BuildConfig
 import com.almog.spotv.MainActivity
 import com.almog.spotv.R
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -156,8 +155,6 @@ class AudioCaptureService : Service() {
                     delay(NO_MATCH_INTERVAL_MS)
                 }
             }
-        } catch (_: CancellationException) {
-            throw
         } finally {
             stopCapture()
         }
