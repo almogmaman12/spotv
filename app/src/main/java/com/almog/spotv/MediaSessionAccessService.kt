@@ -88,7 +88,9 @@ class MediaSessionAccessService : NotificationListenerService() {
     private fun notificationTrack(): ExternalPlayingTrack? {
         val notifications = try { activeNotifications } catch (_: Exception) { null } ?: return null
         for (notification in notifications) {
-            val extras = notification.notification.extras ?: continue
+            val posted = notification.notification
+            val extras = posted.extras ?: continue
+            if (posted.category != Notification.CATEGORY_TRANSPORT && !extras.containsKey("android.mediaSession")) continue
             val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
             val artist = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim().orEmpty()
             if (title.length !in 2..120 || artist.length !in 2..100) continue
