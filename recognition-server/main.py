@@ -71,9 +71,9 @@ def _track_payload(result: dict[str, Any]) -> dict[str, Any] | None:
 async def recognize(request: Request, audio: UploadFile = File(...)) -> dict[str, Any]:
     ip = _client_ip(request)
     now = time.monotonic()
-    if now - last_request[ip] < RATE_LIMIT_SECONDS:
+    if now - last_request[ip + ":shazam"] < RATE_LIMIT_SECONDS:
         raise HTTPException(status_code=429, detail="Please wait before trying another sample.")
-    last_request[ip] = now
+    last_request[ip + ":shazam"] = now
 
     content_type = (audio.content_type or "").lower()
     if content_type not in {"audio/wav", "audio/x-wav", "audio/mpeg", "audio/ogg", "application/octet-stream"}:
@@ -106,9 +106,9 @@ async def recognize_acoustid(request: Request, audio: UploadFile = File(...)) ->
         raise HTTPException(status_code=503, detail="AcoustID is not configured on this bridge.")
     ip = _client_ip(request)
     now = time.monotonic()
-    if now - last_request[ip] < RATE_LIMIT_SECONDS:
+    if now - last_request[ip + ":acoustid"] < RATE_LIMIT_SECONDS:
         raise HTTPException(status_code=429, detail="Please wait before trying another sample.")
-    last_request[ip] = now
+    last_request[ip + ":acoustid"] = now
 
     data = await audio.read(MAX_AUDIO_BYTES + 1)
     if len(data) > MAX_AUDIO_BYTES:
