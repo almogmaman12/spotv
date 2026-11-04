@@ -22,7 +22,7 @@ The bridge has no user authentication. Keep port 10000 on your trusted home LAN 
 2. Render detects `recognition-server/render.yaml`.
 3. Deploy the `spottv-recognition` web service.
 4. Copy its HTTPS URL. The health endpoint should return `{"status":"ok","provider":"ShazamIO"}`.
-5. Configure that URL in SpotTV's recognition settings when the Android client is connected.
+5. Configure the Android build with that URL: add `MUSIC_RECOGNITION_URL=https://YOUR-SERVICE.onrender.com` to `local.properties` before building, or add it as the repository Actions variable named `MUSIC_RECOGNITION_URL` and download a newly built APK. The current app does not have an in-app server URL editor.
 
 The free web service may sleep when idle, so the first recognition after inactivity can be slow.
 Free hosting limits and availability can change. You can also run the container on your own Debian
