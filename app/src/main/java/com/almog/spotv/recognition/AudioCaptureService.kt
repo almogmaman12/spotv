@@ -18,6 +18,7 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import com.almog.spotv.BuildConfig
 import com.almog.spotv.MainActivity
 import com.almog.spotv.R
@@ -135,6 +136,7 @@ class AudioCaptureService : Service() {
                 }
 
                 val wav = toWav(pcm)
+                val sampleCompletedAt = SystemClock.elapsedRealtime()
                 val match = try {
                     recognizer.recognize(wav) ?: acoustId.recognize(wav)
                 } catch (cancel: CancellationException) {
@@ -145,6 +147,7 @@ class AudioCaptureService : Service() {
                 if (match != null) {
                     val key = "${match.artist.lowercase()}:${match.title.lowercase()}"
                     val now = System.currentTimeMillis()
+                    var displayTrack = match
                     if (key != lastRecognizedKey) {
                         val enriched = try {
                             musicBrainz.enrich(match.title, match.artist)
@@ -153,7 +156,7 @@ class AudioCaptureService : Service() {
                         } catch (_: Exception) {
                             null
                         }
-                        val finalTrack = if (enriched != null && enriched.title.equals(match.title, ignoreCase = true)) {
+                        displayTrack = if (enriched != null && enriched.title.equals(match.title, ignoreCase = true)) {
                             match.copy(
                                 title = enriched.title,
                                 artist = enriched.artist,
@@ -161,9 +164,15 @@ class AudioCaptureService : Service() {
                                 durationMs = enriched.durationMs.takeIf { it > 0L } ?: match.durationMs,
                             )
                         } else match
-                        RecognizedTrackSource.publish(finalTrack)
                         lastRecognizedKey = key
                     }
+                    // Shazam offset points to the beginning of this 12-second sample.
+                    // Advance to the sample end, then account for time spent awaiting the bridge.
+                    val elapsedAfterSample = (SystemClock.elapsedRealtime() - sampleCompletedAt).coerceAtLeast(0L)
+                    val estimatedPosition = if (match.matchOffsetMs > 0L) {
+                        match.matchOffsetMs + SAMPLE_SECONDS * 1000L + elapsedAfterSample
+                    } else 0L
+                    RecognizedTrackSource.publish(displayTrack.copy(positionMs = estimatedPosition))
                     lastRecognizedAt = now
                     updateNotification("Recognized: ${match.artist} - ${match.title}")
                     delay(CHANGE_CHECK_INTERVAL_MS)
