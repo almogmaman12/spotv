@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -31,8 +32,16 @@ fun LivingBackground(
     val shift by androidx.compose.animation.core.animateFloatAsState(
         section.toFloat(), androidx.compose.animation.core.tween(3000), label = "section",
     )
+    // The drift is slow, so the background redraws a few times a second instead of every frame.
+    var coarse by androidx.compose.runtime.remember { androidx.compose.runtime.mutableLongStateOf(positionMs()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            coarse = positionMs()
+            kotlinx.coroutines.delay(250)
+        }
+    }
     Canvas(modifier.fillMaxSize()) {
-        val pos = positionMs()
+        val pos = coarse
         val energy = beat.energy(pos)
         val pulse = if (pulseEnabled) beat.pulse(pos) else 0f
         // The song's own clock drives the motion, so it freezes while paused and follows seeks.

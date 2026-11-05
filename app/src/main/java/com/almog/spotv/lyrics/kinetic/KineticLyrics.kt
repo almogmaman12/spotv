@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -268,8 +269,8 @@ private fun LineTimer(block: LyricBlock, positionMs: () -> Long, accent: Color, 
 }
 
 /**
- * One word: rises into place just before it is sung, turns from dim to bright as it is sung, and
- * glows softly in a light tint of the accent while it is the current word.
+ * One word: rises into place just before it is sung and lights up as it is sung. Words that are
+ * not near their moment are drawn statically (no per-frame work), so only a few words animate at once.
  */
 @Composable
 private fun StageWord(
@@ -287,102 +288,96 @@ private fun StageWord(
         fontSize = sp.sp, fontWeight = FontWeight.ExtraBold, fontFamily = family, lineHeight = (sp * 1.02f).sp,
         fontStyle = if (italic) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
     )
-    // A light tint, so the glow reads against a background of the same hue instead of vanishing into it.
-    val tint = remember(accent) { androidx.compose.ui.graphics.lerp(accent, Color.White, 0.55f) }
-    val glowStyle = style.copy(
-        shadow = androidx.compose.ui.graphics.Shadow(tint.copy(alpha = 0.6f), androidx.compose.ui.geometry.Offset.Zero, sp * 0.3f),
-    )
+    // 0 = not yet, 1 = animating, 2 = done. Changes only a few times per word.
+    val phase by remember(w) {
+        androidx.compose.runtime.derivedStateOf {
+            val p = positionMs()
+            when {
+                p < w.startMs - 800L -> 0
+                p <= w.endMs + 1400L -> 1
+                else -> 2
+            }
+        }
+    }
     val letters = remember(w) {
         if (w.motion == Motion.Held && w.endMs - w.startMs >= 1000L && !italic) com.almog.spotv.lyrics.model.extractGraphemeClusters(w.text) else emptyList()
     }
-    Box(
-        Modifier
-            .padding(end = (sp * 0.24f).dp)
-            .graphicsLayer {
-                val pos = positionMs()
-                val t = ((pos - w.startMs + 700L) / 800f).coerceIn(0f, 1f)
-                // Rises with a very small overshoot, then settles: alive, not bouncy.
-                val u = t - 1f
-                val back = 1f + 2.1f * u * u * u + 1.1f * u * u
-                val e = (t * 2.4f).coerceIn(0f, 1f)
-                WordMotion.pose(w.motion, pos - w.startMs, w.endMs - w.startMs, if (pulseOn) beat.pulse(pos) else 0f, pose)
-                alpha = e
-                translationY = (1f - back) * sp.sp.toPx() * 0.38f
-                scaleX = pose.scaleX
-                scaleY = pose.scaleY
-                transformOrigin = TransformOrigin(0.5f, 0.85f)
-            },
-    ) {
+    val base = Modifier.padding(end = (sp * 0.24f).dp)
+    val mod = when (phase) {
+        0 -> base.graphicsLayer { alpha = 0f }
+        2 -> base
+        else -> base.graphicsLayer {
+            val pos = positionMs()
+            val t = ((pos - w.startMs + 700L) / 800f).coerceIn(0f, 1f)
+            // Rises with a very small overshoot, then settles: alive, not bouncy.
+            val u = t - 1f
+            val back = 1f + 2.1f * u * u * u + 1.1f * u * u
+            WordMotion.pose(w.motion, pos - w.startMs, w.endMs - w.startMs, if (pulseOn) beat.pulse(pos) else 0f, pose)
+            alpha = (t * 2.4f).coerceIn(0f, 1f)
+            translationY = (1f - back) * sp.sp.toPx() * 0.38f
+            scaleX = pose.scaleX
+            scaleY = pose.scaleY
+            transformOrigin = TransformOrigin(0.5f, 0.85f)
+        }
+    }
+    Box(mod) {
         if (letters.size >= 2) {
             // A held note: the light and a small lift travel through the letters as it is sung.
             androidx.compose.foundation.layout.Row {
                 val n = letters.size
                 letters.forEachIndexed { i, ch ->
                     val ls = w.startMs + (w.endMs - w.startMs) * i / n
-                    Box(
+                    val letterMod = if (phase == 1) {
                         Modifier.graphicsLayer {
                             val q = ((positionMs() - ls) / (0.4f * (w.endMs - w.startMs))).coerceIn(0f, 1f)
-                            val lift = kotlin.math.sin(Math.PI.toFloat() * q)
-                            translationY = -lift * sp.sp.toPx() * 0.05f
-                        },
-                    ) {
-                        LitText(ch, style, glowStyle, positionMs, ls, w.startMs + (w.endMs - w.startMs) * (i + 1) / n)
+                            translationY = -kotlin.math.sin(Math.PI.toFloat() * q) * sp.sp.toPx() * 0.05f
+                        }
+                    } else {
+                        Modifier
+                    }
+                    Box(letterMod) {
+                        LitText(ch, style, phase, positionMs, ls, w.startMs + (w.endMs - w.startMs) * (i + 1) / n)
                     }
                 }
             }
         } else {
-            LitText(w.text, style, glowStyle, positionMs, w.startMs, w.endMs)
+            LitText(w.text, style, phase, positionMs, w.startMs, w.endMs)
         }
     }
 }
 
-/** Dim text with a bright copy on top that appears at [startMs] and a glowing copy while it is current. */
+/** Dim text with a bright copy on top, revealed from one end to the other as the word is sung. */
 @Composable
 private fun LitText(
     text: String,
     style: androidx.compose.ui.text.TextStyle,
-    glowStyle: androidx.compose.ui.text.TextStyle,
+    phase: Int,
     positionMs: () -> Long,
     startMs: Long,
     endMs: Long,
 ) {
+    if (phase == 2) {
+        Text(text, style = style, color = Color.White, softWrap = false)
+        return
+    }
     Text(text, style = style, color = Color.White.copy(alpha = 0.45f), softWrap = false)
-    Text(
-        text, style = style, color = Color.White, softWrap = false,
-        modifier = Modifier
-            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                // The light travels through the word at exactly the pace it is sung.
+    if (phase == 1) {
+        // A clip, not an offscreen mask: cheap enough for any TV GPU.
+        Text(
+            text, style = style, color = Color.White, softWrap = false,
+            modifier = Modifier.drawWithContent {
                 val dur = (endMs - startMs).coerceAtLeast(140L)
                 val f = ((positionMs() - startMs).toFloat() / dur).coerceIn(0f, 1f)
-                if (f < 1f) {
-                    val edge = 0.35f
-                    val head = f * (1f + edge)
+                if (f > 0f) {
                     val rtl = layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl
-                    val brush = Brush.horizontalGradient(
-                        0f to Color.White,
-                        (head - edge).coerceIn(0f, 1f) to Color.White,
-                        head.coerceIn(0f, 1f) to Color.Transparent,
-                        1f to Color.Transparent,
-                        startX = if (rtl) size.width else 0f,
-                        endX = if (rtl) 0f else size.width,
-                    )
-                    drawRect(brush, blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    val x = size.width * f
+                    clipRect(left = if (rtl) size.width - x else 0f, right = if (rtl) size.width else x) {
+                        this@drawWithContent.drawContent()
+                    }
                 }
             },
-    )
-    Text(
-        text, style = glowStyle, color = Color.White, softWrap = false,
-        modifier = Modifier.graphicsLayer {
-            val pos = positionMs()
-            alpha = when {
-                pos < startMs -> 0f
-                pos <= endMs + 100L -> ((pos - startMs) / 150f).coerceIn(0f, 1f)
-                else -> 1f - ((pos - endMs - 100L) / 400f).coerceIn(0f, 1f)
-            }
-        },
-    )
+        )
+    }
 }
 
 /** A ring that fills as an instrumental break runs out, with a soft beat in the middle. */
