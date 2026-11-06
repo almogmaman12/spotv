@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -174,11 +175,36 @@ fun KineticLyrics(
                     is LyricBlock -> {
                         val text = entry.lead.rawText.ifBlank { entry.lead.words.joinToString(" ") { it.text.trim() } }
                         // Big, but never more than about three rows: size from the amount of text.
-                        val area = screenW.value * 0.84f * screenH.value * 0.46f
+                        val area = screenW.value * 0.84f * screenH.value * 0.58f
                         val fit = sqrt(area / (max(text.length, 8) * 0.6f * 1.25f))
-                        val sp = fit.coerceIn(baseSp * 1.1f, baseSp * 2.6f) * (1f + 0.12f * entry.emphasis)
+                        val sp = fit.coerceIn(baseSp * 1.1f, baseSp * 3.3f) * (1f + 0.12f * entry.emphasis)
                         val words = remember(entry, beat.periodMs) { wordsOf(entry.lead, beat.periodMs) }
                         val rtl = remember(entry) { RtlDetector.isRtl(text) }
+                        // The line's longest word, huge and almost invisible behind it, slowly growing.
+                        val key = remember(entry) {
+                            words.map { it.text.filter { c -> c.isLetter() } }.maxByOrNull { it.length }?.takeIf { it.length >= 4 }
+                        }
+                        if (key != null) {
+                            Text(
+                                key.uppercase(),
+                                color = Color.White.copy(alpha = 0.055f),
+                                fontSize = (baseSp * 5.2f).sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = family,
+                                softWrap = false,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .wrapContentWidth(unbounded = true)
+                                    .graphicsLayer {
+                                        val prog = ((positionMs() - entry.startMs).toFloat() / (entry.endMs - entry.startMs).coerceAtLeast(500L)).coerceIn(0f, 1f)
+                                        val sc = 1f + 0.08f * prog
+                                        scaleX = sc; scaleY = sc
+                                        translationX = screenW.toPx() * 0.04f - prog * 24.dp.toPx()
+                                        translationY = screenH.toPx() * 0.04f
+                                    },
+                            )
+                        }
                         androidx.compose.runtime.CompositionLocalProvider(
                             androidx.compose.ui.platform.LocalLayoutDirection provides
                                 if (rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
@@ -203,7 +229,12 @@ fun KineticLyrics(
                                     horizontalArrangement = Arrangement.Start,
                                     verticalArrangement = Arrangement.spacedBy((sp * -0.04f).dp),
                                 ) {
-                                    for (w in words) StageWord(w, sp, family, positionMs, beat, pulseOn, accent)
+                                    words.forEachIndexed { i, w ->
+                                        StageWord(
+                                            w, sp * sizeFactor(w, i == words.lastIndex && words.size >= 3), family, positionMs, beat, pulseOn, accent,
+                                            modifier = Modifier.align(Alignment.Bottom),
+                                        )
+                                    }
                                 }
                                 entry.lead.translation?.takeIf { it.isNotBlank() }?.let {
                                     Text(
@@ -256,6 +287,17 @@ fun KineticLyrics(
     }
 }
 
+private val SMALL_WORDS = setOf("a", "an", "the", "of", "to", "in", "on", "at", "and", "or", "i", "i'm", "it", "is", "my", "me", "so", "but")
+
+/** Editorial rhythm: held and shouted words are set larger, little connecting words smaller. */
+private fun sizeFactor(w: KWord, lastWord: Boolean): Float = when {
+    w.motion == Motion.Shake -> 1.3f
+    w.motion == Motion.Held -> 1.28f
+    w.text.lowercase().trim { !it.isLetter() && it != '\'' } in SMALL_WORDS -> 0.8f
+    lastWord -> 1.14f
+    else -> 1f
+}
+
 /** A thin line under the lyric that fills as the line is sung. */
 @Composable
 private fun LineTimer(block: LyricBlock, positionMs: () -> Long, accent: Color, sp: Float) {
@@ -282,6 +324,7 @@ private fun StageWord(
     pulseOn: Boolean,
     accent: Color,
     italic: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     val pose = remember { WordPose() }
     val style = androidx.compose.ui.text.TextStyle(
@@ -302,7 +345,7 @@ private fun StageWord(
     val letters = remember(w) {
         if (w.motion == Motion.Held && w.endMs - w.startMs >= 1000L && !italic) com.almog.spotv.lyrics.model.extractGraphemeClusters(w.text) else emptyList()
     }
-    val base = Modifier.padding(end = (sp * 0.24f).dp)
+    val base = modifier.padding(end = (sp * 0.24f).dp)
     val mod = when (phase) {
         0 -> base.graphicsLayer { alpha = 0f }
         2 -> base
