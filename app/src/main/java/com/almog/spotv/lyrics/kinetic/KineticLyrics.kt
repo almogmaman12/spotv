@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -174,12 +175,20 @@ fun KineticLyrics(
             val entry = timeline.entries.getOrNull(idx)
             val next = timeline.entries.drop(idx + 1).filterIsInstance<LyricBlock>().firstOrNull()
             Box(Modifier.fillMaxSize()) {
+                // A soft shade at the bottom keeps the preview and progress line readable on bright covers.
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.28f)
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.4f)))),
+                )
                 when (entry) {
                     is LyricBlock -> {
                         val text = entry.lead.rawText.ifBlank { entry.lead.words.joinToString(" ") { it.text.trim() } }
                         // As big as possible while the whole line still fits in the space above the preview.
                         val availW = screenW.value * 0.86f
-                        val availH = screenH.value * 0.59f
+                        val availH = screenH.value * 0.63f
                         val maxSp = baseSp * 3.6f
                         val minSp = baseSp * 0.9f
                         // Measure the real text, not a guess: the largest size whose wrapped height fits.
@@ -225,7 +234,7 @@ fun KineticLyrics(
                                         val prog = ((positionMs() - entry.startMs).toFloat() / (entry.endMs - entry.startMs).coerceAtLeast(500L)).coerceIn(0f, 1f)
                                         translationX = (0.5f - prog) * 16.dp.toPx()
                                     }
-                                    .padding(start = screenW * 0.07f, end = screenW * 0.07f, top = screenH * 0.22f, bottom = screenH * 0.19f),
+                                    .padding(start = screenW * 0.07f, end = screenW * 0.07f, top = screenH * 0.22f, bottom = screenH * 0.15f),
                                 horizontalAlignment = Alignment.Start,
                             ) {
                                 FlowRow(
@@ -269,7 +278,7 @@ fun KineticLyrics(
                                 entry, positionMs, accent,
                                 Modifier
                                     .align(Alignment.BottomStart)
-                                    .padding(start = screenW * 0.07f, bottom = screenH * 0.14f)
+                                    .padding(start = screenW * 0.07f, bottom = screenH * 0.1f)
                                     .fillMaxWidth(0.3f)
                                     .height(3.dp),
                             )
@@ -294,7 +303,7 @@ fun KineticLyrics(
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier
                             .align(Alignment.BottomStart)
-                            .padding(start = screenW * 0.07f, end = screenW * 0.07f, bottom = screenH * 0.065f),
+                            .padding(start = screenW * 0.07f, end = screenW * 0.07f, bottom = screenH * 0.04f),
                     )
                 }
             }
@@ -356,6 +365,8 @@ private fun StageWord(
             }
         }
     }
+    // The word being sung glows in a light tint of the cover colour, then settles to white.
+    val tint = remember(accent) { androidx.compose.ui.graphics.lerp(accent, Color.White, 0.4f) }
     val letters = remember(w) {
         if (w.motion == Motion.Held && w.endMs - w.startMs >= 1000L && !italic) com.almog.spotv.lyrics.model.extractGraphemeClusters(w.text) else emptyList()
     }
@@ -393,12 +404,12 @@ private fun StageWord(
                         Modifier
                     }
                     Box(letterMod) {
-                        LitText(ch, style, phase, positionMs, ls, w.startMs + (w.endMs - w.startMs) * (i + 1) / n)
+                        LitText(ch, style, phase, positionMs, ls, w.startMs + (w.endMs - w.startMs) * (i + 1) / n, tint)
                     }
                 }
             }
         } else {
-            LitText(w.text, style, phase, positionMs, w.startMs, w.endMs)
+            LitText(w.text, style, phase, positionMs, w.startMs, w.endMs, tint)
         }
     }
 }
@@ -412,6 +423,7 @@ private fun LitText(
     positionMs: () -> Long,
     startMs: Long,
     endMs: Long,
+    tint: Color,
 ) {
     if (phase == 2) {
         Text(text, style = style, color = Color.White, softWrap = false)
@@ -433,6 +445,26 @@ private fun LitText(
                     }
                 }
             },
+        )
+        // The same word again in the tint, fading away once it has been sung.
+        Text(
+            text, style = style, color = tint, softWrap = false,
+            modifier = Modifier
+                .graphicsLayer {
+                    val pos = positionMs()
+                    alpha = if (pos <= endMs) 0.85f else (0.85f * (1f - (pos - endMs) / 550f)).coerceIn(0f, 0.85f)
+                }
+                .drawWithContent {
+                    val dur = (endMs - startMs).coerceAtLeast(140L)
+                    val f = ((positionMs() - startMs).toFloat() / dur).coerceIn(0f, 1f)
+                    if (f > 0f) {
+                        val rtl = layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl
+                        val x = size.width * f
+                        clipRect(left = if (rtl) size.width - x else 0f, right = if (rtl) size.width else x) {
+                            this@drawWithContent.drawContent()
+                        }
+                    }
+                },
         )
     }
 }
