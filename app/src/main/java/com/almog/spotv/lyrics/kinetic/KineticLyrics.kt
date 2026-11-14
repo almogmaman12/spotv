@@ -180,31 +180,6 @@ fun KineticLyrics(
                         val sp = fit.coerceIn(baseSp * 1.1f, baseSp * 3.3f) * (1f + 0.12f * entry.emphasis)
                         val words = remember(entry, beat.periodMs) { wordsOf(entry.lead, beat.periodMs) }
                         val rtl = remember(entry) { RtlDetector.isRtl(text) }
-                        // The line's longest word, huge and almost invisible behind it, slowly growing.
-                        val key = remember(entry) {
-                            words.map { it.text.filter { c -> c.isLetter() } }.maxByOrNull { it.length }?.takeIf { it.length >= 4 }
-                        }
-                        if (key != null) {
-                            Text(
-                                key.uppercase(),
-                                color = Color.White.copy(alpha = 0.055f),
-                                fontSize = (baseSp * 5.2f).sp,
-                                fontWeight = FontWeight.Black,
-                                fontFamily = family,
-                                softWrap = false,
-                                maxLines = 1,
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .wrapContentWidth(unbounded = true)
-                                    .graphicsLayer {
-                                        val prog = ((positionMs() - entry.startMs).toFloat() / (entry.endMs - entry.startMs).coerceAtLeast(500L)).coerceIn(0f, 1f)
-                                        val sc = 1f + 0.08f * prog
-                                        scaleX = sc; scaleY = sc
-                                        translationX = screenW.toPx() * 0.04f - prog * 24.dp.toPx()
-                                        translationY = screenH.toPx() * 0.04f
-                                    },
-                            )
-                        }
                         androidx.compose.runtime.CompositionLocalProvider(
                             androidx.compose.ui.platform.LocalLayoutDirection provides
                                 if (rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
@@ -291,10 +266,10 @@ private val SMALL_WORDS = setOf("a", "an", "the", "of", "to", "in", "on", "at", 
 
 /** Editorial rhythm: held and shouted words are set larger, little connecting words smaller. */
 private fun sizeFactor(w: KWord, lastWord: Boolean): Float = when {
-    w.motion == Motion.Shake -> 1.3f
-    w.motion == Motion.Held -> 1.28f
-    w.text.lowercase().trim { !it.isLetter() && it != '\'' } in SMALL_WORDS -> 0.8f
-    lastWord -> 1.14f
+    w.motion == Motion.Shake -> 1.18f
+    w.motion == Motion.Held -> 1.15f
+    w.text.lowercase().trim { !it.isLetter() && it != '\'' } in SMALL_WORDS -> 0.9f
+    lastWord -> 1.08f
     else -> 1f
 }
 

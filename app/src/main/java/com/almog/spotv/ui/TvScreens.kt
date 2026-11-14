@@ -369,8 +369,7 @@ private fun NowPlayingScreen(
                     fontSize = t(24f),
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.basicMarquee(initialDelayMillis = 2000, velocity = 40.dp),
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     np.artist,
@@ -396,6 +395,9 @@ private fun NowPlayingScreen(
                 p.animateTo(1f, tween(900))
             }
             if (p.value < 1f) {
+                // Dim the lyrics while the card is up, so nothing shows through behind it.
+                val k = p.value
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f * (1f - k * k))))
                 val big = d(220f)
                 val mw = maxWidth
                 val mh = maxHeight
