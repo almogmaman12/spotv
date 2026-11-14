@@ -175,7 +175,7 @@ fun KineticLyrics(
                     is LyricBlock -> {
                         val text = entry.lead.rawText.ifBlank { entry.lead.words.joinToString(" ") { it.text.trim() } }
                         // Big, but never more than about three rows: size from the amount of text.
-                        val area = screenW.value * 0.84f * screenH.value * 0.58f
+                        val area = screenW.value * 0.84f * screenH.value * 0.5f
                         val fit = sqrt(area / (max(text.length, 8) * 0.6f * 1.25f))
                         val sp = fit.coerceIn(baseSp * 1.1f, baseSp * 3.3f) * (1f + 0.12f * entry.emphasis)
                         val words = remember(entry, beat.periodMs) { wordsOf(entry.lead, beat.periodMs) }
@@ -196,7 +196,7 @@ fun KineticLyrics(
                                         val prog = ((positionMs() - entry.startMs).toFloat() / (entry.endMs - entry.startMs).coerceAtLeast(500L)).coerceIn(0f, 1f)
                                         translationX = (0.5f - prog) * 16.dp.toPx()
                                     }
-                                    .padding(horizontal = screenW * 0.07f),
+                                    .padding(start = screenW * 0.07f, end = screenW * 0.07f, top = screenH * 0.12f, bottom = screenH * 0.2f),
                                 horizontalAlignment = Alignment.Start,
                             ) {
                                 FlowRow(
@@ -243,7 +243,10 @@ fun KineticLyrics(
                     }
                     null -> Unit
                 }
-                if (next != null) {
+                val currentText = (entry as? LyricBlock)?.lead?.rawText?.trim().orEmpty()
+                val nextText = next?.lead?.rawText?.trim().orEmpty()
+                // A repeated line would just show the same words twice.
+                if (next != null && !nextText.equals(currentText, ignoreCase = true)) {
                     Text(
                         next.lead.rawText.ifBlank { next.lead.words.joinToString(" ") { it.text.trim() } },
                         color = Color.White.copy(alpha = 0.38f),
