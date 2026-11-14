@@ -179,7 +179,7 @@ fun KineticLyrics(
                         val text = entry.lead.rawText.ifBlank { entry.lead.words.joinToString(" ") { it.text.trim() } }
                         // As big as possible while the whole line still fits in the space above the preview.
                         val availW = screenW.value * 0.86f
-                        val availH = screenH.value * 0.54f
+                        val availH = screenH.value * 0.59f
                         val maxSp = baseSp * 3.6f
                         val minSp = baseSp * 0.9f
                         // Measure the real text, not a guess: the largest size whose wrapped height fits.
@@ -225,7 +225,7 @@ fun KineticLyrics(
                                         val prog = ((positionMs() - entry.startMs).toFloat() / (entry.endMs - entry.startMs).coerceAtLeast(500L)).coerceIn(0f, 1f)
                                         translationX = (0.5f - prog) * 16.dp.toPx()
                                     }
-                                    .padding(start = screenW * 0.07f, end = screenW * 0.07f, top = screenH * 0.22f, bottom = screenH * 0.24f),
+                                    .padding(start = screenW * 0.07f, end = screenW * 0.07f, top = screenH * 0.22f, bottom = screenH * 0.19f),
                                 horizontalAlignment = Alignment.Start,
                             ) {
                                 FlowRow(
@@ -269,7 +269,7 @@ fun KineticLyrics(
                                 entry, positionMs, accent,
                                 Modifier
                                     .align(Alignment.BottomStart)
-                                    .padding(start = screenW * 0.07f, bottom = screenH * 0.215f)
+                                    .padding(start = screenW * 0.07f, bottom = screenH * 0.14f)
                                     .fillMaxWidth(0.3f)
                                     .height(3.dp),
                             )
@@ -294,7 +294,7 @@ fun KineticLyrics(
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier
                             .align(Alignment.BottomStart)
-                            .padding(start = screenW * 0.07f, end = screenW * 0.07f, bottom = screenH * 0.14f),
+                            .padding(start = screenW * 0.07f, end = screenW * 0.07f, bottom = screenH * 0.065f),
                     )
                 }
             }
