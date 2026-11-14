@@ -166,8 +166,10 @@ fun KineticLyrics(
         AnimatedContent(
             targetState = active,
             transitionSpec = {
-                fadeIn(tween(200, delayMillis = 140)) togetherWith
-                    (fadeOut(tween(320)) + slideOutVertically(tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -it / 14 })
+                // The old line drifts up and dissolves while the new one fades in underneath it.
+                fadeIn(tween(450, delayMillis = 180)) togetherWith
+                    (fadeOut(tween(520, easing = androidx.compose.animation.core.FastOutSlowInEasing)) +
+                        slideOutVertically(tween(650, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -it / 10 })
             },
             label = "line",
             modifier = Modifier.fillMaxSize(),
@@ -228,8 +230,15 @@ fun KineticLyrics(
                                     .wrapContentHeight(unbounded = true)
                                     .graphicsLayer {
                                         // Once a line is done it settles back a little, so the eye moves on.
-                                        val d = ((positionMs() - entry.endMs - 1500L) / 2000f).coerceIn(0f, 1f)
-                                        alpha = 1f - 0.5f * d
+                                        val isLast = idx == timeline.entries.lastIndex
+                                        val d = ((positionMs() - entry.endMs - (if (isLast) 1200L else 1500L)) / (if (isLast) 3000f else 2000f)).coerceIn(0f, 1f)
+                                        val eased = d * d * (3f - 2f * d)
+                                        // The final line lets go slowly: it fades out completely and sinks a touch.
+                                        alpha = 1f - (if (isLast) 1f else 0.5f) * eased
+                                        if (isLast) {
+                                            val sc = 1f - 0.04f * eased
+                                            scaleX = sc; scaleY = sc
+                                        }
                                         // A slow drift across the length of the line keeps the screen alive.
                                         val prog = ((positionMs() - entry.startMs).toFloat() / (entry.endMs - entry.startMs).coerceAtLeast(500L)).coerceIn(0f, 1f)
                                         translationX = (0.5f - prog) * 16.dp.toPx()
