@@ -174,10 +174,19 @@ fun KineticLyrics(
                 when (entry) {
                     is LyricBlock -> {
                         val text = entry.lead.rawText.ifBlank { entry.lead.words.joinToString(" ") { it.text.trim() } }
-                        // Big, but never more than about three rows: size from the amount of text.
-                        val area = screenW.value * 0.84f * screenH.value * 0.5f
-                        val fit = sqrt(area / (max(text.length, 8) * 0.6f * 1.25f))
-                        val sp = fit.coerceIn(baseSp * 1.1f, baseSp * 3.3f) * (1f + 0.12f * entry.emphasis)
+                        // As big as possible while the whole line still fits in the space above the preview.
+                        val availW = screenW.value * 0.86f
+                        val availH = screenH.value * (if (entry.backgrounds.isNotEmpty()) 0.6f else 0.68f)
+                        val maxSp = baseSp * 3.6f
+                        val minSp = baseSp * 0.9f
+                        var fit = maxSp
+                        while (fit > minSp) {
+                            val perRow = (availW / (fit * 0.6f)).coerceAtLeast(1f)
+                            val rows = kotlin.math.ceil(max(text.length, 1) / perRow * 1.12f).coerceAtLeast(1f)
+                            if (rows * fit * 1.02f <= availH) break
+                            fit *= 0.95f
+                        }
+                        val sp = fit.coerceAtLeast(minSp) * (1f + 0.08f * entry.emphasis)
                         val words = remember(entry, beat.periodMs) { wordsOf(entry.lead, beat.periodMs) }
                         val rtl = remember(entry) { RtlDetector.isRtl(text) }
                         androidx.compose.runtime.CompositionLocalProvider(
@@ -196,7 +205,7 @@ fun KineticLyrics(
                                         val prog = ((positionMs() - entry.startMs).toFloat() / (entry.endMs - entry.startMs).coerceAtLeast(500L)).coerceIn(0f, 1f)
                                         translationX = (0.5f - prog) * 16.dp.toPx()
                                     }
-                                    .padding(start = screenW * 0.07f, end = screenW * 0.07f, top = screenH * 0.12f, bottom = screenH * 0.2f),
+                                    .padding(start = screenW * 0.07f, end = screenW * 0.07f, top = screenH * 0.11f, bottom = screenH * 0.24f),
                                 horizontalAlignment = Alignment.Start,
                             ) {
                                 FlowRow(
@@ -224,8 +233,16 @@ fun KineticLyrics(
                                         fontFamily = family, modifier = Modifier.padding(top = (sp * 0.2f).dp),
                                     )
                                 }
-                                LineTimer(entry, positionMs, accent, sp)
                             }
+                            // Fixed above the next-line preview, so a tall lyric can never push it out of view.
+                            LineTimer(
+                                entry, positionMs, accent,
+                                Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(start = screenW * 0.07f, bottom = screenH * 0.215f)
+                                    .fillMaxWidth(0.3f)
+                                    .height(3.dp),
+                            )
                         }
                     }
                     is BreakEntry -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -268,13 +285,12 @@ private fun sizeFactor(w: KWord, lastWord: Boolean): Float = when {
 
 /** A thin line under the lyric that fills as the line is sung. */
 @Composable
-private fun LineTimer(block: LyricBlock, positionMs: () -> Long, accent: Color, sp: Float) {
-    Canvas(Modifier.padding(top = (sp * 0.4f).dp).fillMaxWidth().height((sp * 0.06f).coerceAtLeast(3f).dp)) {
+private fun LineTimer(block: LyricBlock, positionMs: () -> Long, accent: Color, modifier: Modifier) {
+    Canvas(modifier) {
         val total = (block.endMs - block.startMs).coerceAtLeast(500L)
         val p = ((positionMs() - block.startMs).toFloat() / total).coerceIn(0f, 1f)
-        val h = size.height
-        drawRect(Color.White.copy(alpha = 0.12f), size = Size(size.width * 0.35f, h))
-        drawRect(accent, size = Size(size.width * 0.35f * p, h))
+        drawRect(Color.White.copy(alpha = 0.14f), size = Size(size.width, size.height))
+        drawRect(accent, size = Size(size.width * p, size.height))
     }
 }
 
