@@ -157,6 +157,8 @@ fun KineticLyrics(
 
     val active by remember(timeline) { derivedStateOf { timeline.activeIndex(positionMs()) } }
 
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val density = androidx.compose.ui.platform.LocalDensity.current
     BoxWithConstraints(modifier.fillMaxSize()) {
         val screenW = maxWidth
         val screenH = maxHeight
@@ -180,15 +182,29 @@ fun KineticLyrics(
                         val availH = screenH.value * 0.54f
                         val maxSp = baseSp * 3.6f
                         val minSp = baseSp * 0.9f
-                        var fit = maxSp
-                        while (fit > minSp) {
-                            val perRow = (availW / (fit * 0.6f)).coerceAtLeast(1f)
-                            val spaces = text.count { it == ' ' } + 1
-                            val rows = kotlin.math.ceil((max(text.length, 1) + spaces * 0.4f) / perRow * 1.15f).coerceAtLeast(1f)
-                            if (rows * fit * 1.02f <= availH) break
-                            fit *= 0.95f
+                        // Measure the real text, not a guess: the largest size whose wrapped height fits.
+                        val sp = remember(entry, family, screenW, screenH, baseSp) {
+                            val wPx = with(density) { (availW * 0.9f).dp.roundToPx() }
+                            val hPx = with(density) { (availH * 0.93f).dp.roundToPx() }
+                            fun fits(size: Float): Boolean {
+                                val r = measurer.measure(
+                                    androidx.compose.ui.text.AnnotatedString(text),
+                                    androidx.compose.ui.text.TextStyle(
+                                        fontSize = size.sp, fontWeight = FontWeight.ExtraBold, fontFamily = family,
+                                        lineHeight = (size * 1.02f).sp,
+                                    ),
+                                    constraints = androidx.compose.ui.unit.Constraints(maxWidth = wPx),
+                                )
+                                return r.size.height <= hPx
+                            }
+                            var lo = minSp
+                            var hi = maxSp
+                            repeat(9) {
+                                val mid = (lo + hi) / 2f
+                                if (fits(mid)) lo = mid else hi = mid
+                            }
+                            lo * (1f + 0.06f * entry.emphasis).coerceAtMost(1.06f) * 0.94f
                         }
-                        val sp = fit.coerceAtLeast(minSp) * (1f + 0.08f * entry.emphasis)
                         val words = remember(entry, beat.periodMs) { wordsOf(entry.lead, beat.periodMs) }
                         val rtl = remember(entry) { RtlDetector.isRtl(text) }
                         androidx.compose.runtime.CompositionLocalProvider(
