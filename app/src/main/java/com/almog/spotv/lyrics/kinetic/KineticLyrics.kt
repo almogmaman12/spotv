@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
@@ -182,7 +183,8 @@ fun KineticLyrics(
                         var fit = maxSp
                         while (fit > minSp) {
                             val perRow = (availW / (fit * 0.6f)).coerceAtLeast(1f)
-                            val rows = kotlin.math.ceil(max(text.length, 1) / perRow * 1.12f).coerceAtLeast(1f)
+                            val spaces = text.count { it == ' ' } + 1
+                            val rows = kotlin.math.ceil((max(text.length, 1) + spaces * 0.4f) / perRow * 1.15f).coerceAtLeast(1f)
                             if (rows * fit * 1.02f <= availH) break
                             fit *= 0.95f
                         }
@@ -197,6 +199,8 @@ fun KineticLyrics(
                                 Modifier
                                     .align(Alignment.CenterStart)
                                     .fillMaxWidth()
+                                    // Never clip: a line that needs one more row than estimated must still show every word.
+                                    .wrapContentHeight(unbounded = true)
                                     .graphicsLayer {
                                         // Once a line is done it settles back a little, so the eye moves on.
                                         val d = ((positionMs() - entry.endMs - 1500L) / 2000f).coerceIn(0f, 1f)

@@ -59,7 +59,8 @@ class KineticTimeline(
     /** When each entry takes the stage: shortly before its first word, but never while the line before is still being sung. */
     private val triggers = LongArray(entries.size) { i ->
         val lead = entries[i].startMs - LEAD_MS
-        if (i == 0) lead else max(lead, entries[i - 1].endMs.coerceAtMost(entries[i].startMs))
+        // Never take the stage while the previous line's last word is still being sung (with a short grace).
+        if (i == 0) lead else max(lead, min(entries[i - 1].endMs + 150L, entries[i].startMs + 700L))
     }
 
     fun activeIndex(posMs: Long): Int {
