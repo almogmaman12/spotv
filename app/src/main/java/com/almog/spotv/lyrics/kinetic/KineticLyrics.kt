@@ -211,6 +211,13 @@ fun KineticLyrics(
                                         )
                                     }
                                 }
+                                // Backing vocals ("ooh", echoes): small and slanted, just under the main line.
+                                for (bg in entry.backgrounds) {
+                                    val bgWords = remember(bg) { wordsOf(bg, beat.periodMs) }
+                                    FlowRow(Modifier.fillMaxWidth().padding(top = (sp * 0.1f).dp), horizontalArrangement = Arrangement.Start) {
+                                        for (w in bgWords) StageWord(w, sp * 0.4f, family, positionMs, beat, false, accent, italic = true)
+                                    }
+                                }
                                 entry.lead.translation?.takeIf { it.isNotBlank() }?.let {
                                     Text(
                                         it, color = Color.White.copy(alpha = 0.55f), fontSize = (sp * 0.34f).sp,
@@ -218,23 +225,6 @@ fun KineticLyrics(
                                     )
                                 }
                                 LineTimer(entry, positionMs, accent, sp)
-                            }
-                            if (entry.backgrounds.isNotEmpty()) {
-                                // Backing vocals ("ooh", echoes) float in the corner, small and slanted.
-                                Column(
-                                    Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(top = screenH * 0.14f, end = screenW * 0.06f)
-                                        .fillMaxWidth(0.4f),
-                                    horizontalAlignment = Alignment.End,
-                                ) {
-                                    for (bg in entry.backgrounds) {
-                                        val bgWords = remember(bg) { wordsOf(bg, beat.periodMs) }
-                                        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                            for (w in bgWords) StageWord(w, baseSp * 0.7f, family, positionMs, beat, false, accent, italic = true)
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
