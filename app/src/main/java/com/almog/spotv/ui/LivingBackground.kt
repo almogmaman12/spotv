@@ -25,6 +25,8 @@ fun LivingBackground(
     positionMs: () -> Long,
     pulseEnabled: Boolean,
     section: Int = 0,
+    /** Length of the song; the colours travel once through the whole palette from start to end. */
+    durationMs: Long = 0L,
     modifier: Modifier = Modifier,
 ) {
     val colors = if (palette.size >= 3) palette else (palette + palette + palette).take(3).ifEmpty { listOf(Color(0xFF1DB954)) }
@@ -55,7 +57,8 @@ fun LivingBackground(
             val cx = w * (0.5f + 0.38f * sin(a * 0.9f + i))
             val cy = h * (0.5f + 0.34f * cos(a * 0.7f + i * 2f))
             val r = (w * (0.34f + 0.05f * i) ) * (1f + 0.06f * pulse + 0.1f * energy)
-            val ci = i + shift
+            val journey = if (durationMs > 0L) (pos.toFloat() / durationMs).coerceIn(0f, 1f) * colors.size * 0.8f else 0f
+            val ci = i + shift * 0.5f + journey
             val k0 = kotlin.math.floor(ci).toInt()
             val c = androidx.compose.ui.graphics.lerp(colors[Math.floorMod(k0, colors.size)], colors[Math.floorMod(k0 + 1, colors.size)], ci - k0)
             drawCircle(
