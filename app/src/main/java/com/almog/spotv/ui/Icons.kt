@@ -95,3 +95,13 @@ fun DrawScope.drawGearIcon(c: Color) {
         )
     }
 }
+
+/** Three lines with dots: "browse the library". */
+fun DrawScope.drawListIcon(c: Color) {
+    val w = size.width
+    for (i in 0 until 3) {
+        val y = size.height * (0.32f + 0.18f * i)
+        drawCircle(c, radius = w * 0.045f, center = Offset(w * 0.28f, y))
+        drawLine(c, Offset(w * 0.4f, y), Offset(w * 0.74f, y), w * 0.08f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    }
+}

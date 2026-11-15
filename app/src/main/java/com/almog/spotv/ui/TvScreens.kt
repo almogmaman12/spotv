@@ -103,6 +103,7 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
     val status by AppStatus.status.collectAsStateWithLifecycle()
     val settingsOpen by tv.settingsOpen.collectAsStateWithLifecycle()
     val settingsVersion by tv.settingsVersion.collectAsStateWithLifecycle()
+    val browseOpen by tv.browseOpen.collectAsStateWithLifecycle()
 
     // Keep the last cover until the next one has loaded, so the backdrop never flashes black.
     var cover by remember { mutableStateOf<Cover?>(null) }
@@ -163,7 +164,7 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
     ) {
         when {
             !loggedIn -> LoginScreen(tv)
-            current == null -> IdleScreen(connected, onOpenSettings = { tv.openSettings() })
+            current == null -> IdleScreen(connected, onOpenSettings = { tv.openSettings() }, onOpenBrowse = { tv.openBrowse() })
             else -> NowPlayingScreen(
                 np = current,
                 upNext = queue.firstOrNull()?.let { if (it.artist.isBlank()) it.title else "${it.title} — ${it.artist}" },
@@ -173,8 +174,10 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
                 settingsOpen = settingsOpen,
                 settingsVersion = settingsVersion,
                 onOpenSettings = { tv.openSettings() },
+                onOpenBrowse = { tv.openBrowse() },
             )
         }
+        if (browseOpen && loggedIn) BrowseScreen(tv)
         if (settingsOpen && loggedIn) {
             // A panel over the right-hand side, so lyric changes show live beside it.
             SettingsPanel(
@@ -240,6 +243,7 @@ private fun NowPlayingScreen(
     settingsOpen: Boolean,
     settingsVersion: Int,
     onOpenSettings: () -> Unit,
+    onOpenBrowse: () -> Unit,
 ) {
     val accent by androidx.compose.animation.animateColorAsState(
         cover?.accent ?: SpotifyGreen, animationSpec = tween(1500), label = "accent",
@@ -492,6 +496,7 @@ private fun NowPlayingScreen(
                 TvButton(d(50f), onClick = { player.cycleRepeat() }) { fg ->
                     drawRepeatIcon(if (np.repeat != "off") accentOn(fg) else fg, one = np.repeat == "track")
                 }
+                TvButton(d(44f), onClick = onOpenBrowse) { fg -> drawListIcon(fg) }
                 TvButton(d(44f), onClick = onOpenSettings) { fg -> drawGearIcon(fg) }
             }
         }
@@ -644,7 +649,7 @@ private fun Step(number: String, text: String, s: Float) {
 }
 
 @Composable
-private fun IdleScreen(connected: Boolean, onOpenSettings: () -> Unit) {
+private fun IdleScreen(connected: Boolean, onOpenSettings: () -> Unit, onOpenBrowse: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF121212)), contentAlignment = Alignment.Center) {
         val s = maxHeight.value / 540f
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = (80f * s).dp)) {
@@ -655,7 +660,7 @@ private fun IdleScreen(connected: Boolean, onOpenSettings: () -> Unit) {
             if (connected) {
                 Spacer(Modifier.height((12f * s).dp))
                 Text(
-                    "Start a song in Spotify on your phone or this TV and it will show up here.",
+                    "Pick something to play, or start a song in Spotify on your phone and it shows up here.",
                     color = Color.White.copy(alpha = 0.6f), fontSize = (22f * s).sp, textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height((28f * s).dp))
@@ -666,7 +671,12 @@ private fun IdleScreen(connected: Boolean, onOpenSettings: () -> Unit) {
                     } catch (_: IllegalStateException) {
                     }
                 }
-                TvButton((56f * s).dp, onClick = onOpenSettings, focusRequester = focus) { fg -> drawGearIcon(fg) }
+                Row(horizontalArrangement = Arrangement.spacedBy((20f * s).dp), verticalAlignment = Alignment.CenterVertically) {
+                    TvButton((64f * s).dp, onClick = onOpenBrowse, focusRequester = focus, primary = true) { fg -> drawListIcon(fg) }
+                    TvButton((56f * s).dp, onClick = onOpenSettings) { fg -> drawGearIcon(fg) }
+                }
+                Spacer(Modifier.height((10f * s).dp))
+                Text("Browse your music", color = Color.White.copy(alpha = 0.55f), fontSize = (18f * s).sp)
             }
         }
     }

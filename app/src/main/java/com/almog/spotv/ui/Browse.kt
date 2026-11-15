@@ -1,0 +1,517 @@
+package com.almog.spotv.ui
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.almog.spotv.TvViewModel
+import com.almog.spotv.spotify.Entry
+import com.almog.spotv.spotify.Kind
+import com.almog.spotv.spotify.Listing
+import com.almog.spotv.spotify.SearchResults
+import com.almog.spotv.spotify.SpotifyDevice
+import kotlinx.coroutines.delay
+
+private val Green = Color(0xFF1DB954)
+private val Panel = Color(0xFF0E0E10)
+
+private enum class Section(val label: String) {
+    SEARCH("Search"),
+    PLAYLISTS("Playlists"),
+    LIKED("Liked songs"),
+    ALBUMS("Albums"),
+    ARTISTS("Artists"),
+    DEVICES("Devices"),
+}
+
+/** A page opened from a list: an album, playlist or artist. */
+private class Detail(val entry: Entry)
+
+/**
+ * The built-in Spotify browser: search, playlists, liked songs, albums, artists and devices.
+ * Left/right moves between the menu and the lists; OK plays or opens; holding OK on a song queues it.
+ */
+@Composable
+fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier.fillMaxSize().background(Panel)) {
+        val s = maxHeight.value / 540f
+        var section by remember { mutableStateOf(Section.PLAYLISTS) }
+        val stack = remember { mutableStateListOf<Detail>() }
+        BackHandler { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) else tv.closeBrowse() }
+
+        Row(Modifier.fillMaxSize()) {
+            // The menu on the left.
+            Column(
+                Modifier
+                    .width((220f * s).dp)
+                    .fillMaxHeight()
+                    .background(Color.White.copy(alpha = 0.04f))
+                    .padding(vertical = (28f * s).dp, horizontal = (14f * s).dp),
+                verticalArrangement = Arrangement.spacedBy((6f * s).dp),
+            ) {
+                Text(
+                    "Library", color = Color.White.copy(alpha = 0.5f), fontSize = (16f * s).sp,
+                    modifier = Modifier.padding(start = (12f * s).dp, bottom = (10f * s).dp),
+                )
+                val first = remember { FocusRequester() }
+                LaunchedEffect(Unit) {
+                    try { first.requestFocus() } catch (_: IllegalStateException) {}
+                }
+                for (sec in Section.values()) {
+                    RailItem(
+                        label = sec.label, selected = sec == section, s = s,
+                        modifier = if (sec == Section.PLAYLISTS) Modifier.focusRequester(first) else Modifier,
+                    ) {
+                        if (sec != section) {
+                            section = sec
+                            stack.clear()
+                        }
+                    }
+                }
+            }
+
+            Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = (32f * s).dp, vertical = (24f * s).dp)) {
+                val top = stack.lastOrNull()
+                if (top != null) {
+                    DetailPage(tv, top, s) { stack.add(Detail(it)) }
+                } else {
+                    when (section) {
+                        Section.SEARCH -> SearchPage(tv, s) { stack.add(Detail(it)) }
+                        Section.PLAYLISTS -> GridPage(tv, "Your playlists", s, { tv.catalog.myPlaylists() }) { stack.add(Detail(it)) }
+                        Section.ALBUMS -> GridPage(tv, "Saved albums", s, { tv.catalog.savedAlbums() }) { stack.add(Detail(it)) }
+                        Section.ARTISTS -> GridPage(tv, "Followed artists", s, { tv.catalog.followedArtists() }) { stack.add(Detail(it)) }
+                        Section.LIKED -> LikedPage(tv, s)
+                        Section.DEVICES -> DevicesPage(tv, s)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---- pages ------------------------------------------------------------------------------------
+
+@Composable
+private fun GridPage(tv: TvViewModel, title: String, s: Float, load: suspend () -> Listing, onOpen: (Entry) -> Unit) {
+    val listing by produceState<Listing?>(null, title) { value = load() }
+    Column(Modifier.fillMaxSize()) {
+        PageTitle(title, s)
+        Loaded(tv, listing, s) { list ->
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(4),
+                contentPadding = PaddingValues(bottom = (24f * s).dp, top = (8f * s).dp),
+                horizontalArrangement = Arrangement.spacedBy((16f * s).dp),
+                verticalArrangement = Arrangement.spacedBy((18f * s).dp),
+            ) {
+                items(list, key = { it.uri }) { e -> Card(e, s) { onOpen(e) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LikedPage(tv: TvViewModel, s: Float) {
+    val listing by produceState<Listing?>(null) { value = tv.catalog.savedTracks() }
+    Column(Modifier.fillMaxSize()) {
+        PageTitle("Liked songs", s)
+        Loaded(tv, listing, s) { list ->
+            LazyColumn(contentPadding = PaddingValues(bottom = (24f * s).dp), verticalArrangement = Arrangement.spacedBy((4f * s).dp)) {
+                items(list.size, key = { list[it].uri + it }) { i ->
+                    val e = list[i]
+                    EntryRow(e, s, onLong = { tv.addToQueue(e.uri, e.title) }) {
+                        // Play from this song onwards (Spotify takes up to 100 songs at once).
+                        tv.playFromBrowse(uris = list.drop(i).take(100).map { it.uri }, label = e.title)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailPage(tv: TvViewModel, detail: Detail, s: Float, onOpen: (Entry) -> Unit) {
+    val entry = detail.entry
+    val listing by produceState<Listing?>(null, entry.uri) {
+        value = when (entry.kind) {
+            Kind.ALBUM -> tv.catalog.albumTracks(entry)
+            Kind.PLAYLIST -> tv.catalog.playlistTracks(entry.id)
+            Kind.ARTIST -> tv.catalog.artistAlbums(entry.id)
+            Kind.TRACK -> Listing(emptyList(), 200)
+        }
+    }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { focus.requestFocus() } catch (_: IllegalStateException) {}
+    }
+    Column(Modifier.fillMaxSize()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = (12f * s).dp)) {
+            Thumb(entry, (96f * s).dp)
+            Spacer(Modifier.width((20f * s).dp))
+            Column(Modifier.weight(1f)) {
+                Text(entry.title, color = Color.White, fontSize = (30f * s).sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (entry.subtitle.isNotEmpty()) {
+                    Text(entry.subtitle, color = Color.White.copy(alpha = 0.6f), fontSize = (18f * s).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Pill("Play", s, Modifier.focusRequester(focus)) { tv.playFromBrowse(contextUri = entry.uri, label = entry.title) }
+        }
+        Loaded(tv, listing, s) { list ->
+            LazyColumn(contentPadding = PaddingValues(bottom = (24f * s).dp), verticalArrangement = Arrangement.spacedBy((4f * s).dp)) {
+                items(list.size, key = { list[it].uri + it }) { i ->
+                    val e = list[i]
+                    when (e.kind) {
+                        Kind.TRACK -> EntryRow(e, s, onLong = { tv.addToQueue(e.uri, e.title) }) {
+                            if (entry.kind == Kind.ARTIST) {
+                                tv.playFromBrowse(uris = listOf(e.uri), label = e.title)
+                            } else {
+                                tv.playFromBrowse(contextUri = entry.uri, offsetUri = e.uri, label = e.title)
+                            }
+                        }
+                        else -> EntryRow(e, s) { onOpen(e) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchPage(tv: TvViewModel, s: Float, onOpen: (Entry) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var submitted by remember { mutableStateOf("") }
+    // Search as you type, a moment after the last key.
+    LaunchedEffect(query) {
+        delay(650)
+        submitted = query.trim()
+    }
+    val results by produceState<SearchResults?>(null, submitted) {
+        value = if (submitted.length < 2) null else tv.catalog.search(submitted)
+    }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { focus.requestFocus() } catch (_: IllegalStateException) {}
+    }
+    Column(Modifier.fillMaxSize()) {
+        PageTitle("Search", s)
+        var fieldFocused by remember { mutableStateOf(false) }
+        BasicTextField(
+            value = query,
+            onValueChange = { query = it },
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = (24f * s).sp),
+            cursorBrush = SolidColor(Green),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { submitted = query.trim() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focus)
+                .onFocusChanged { fieldFocused = it.isFocused }
+                .clip(RoundedCornerShape((12f * s).dp))
+                .background(Color.White.copy(alpha = if (fieldFocused) 0.14f else 0.08f))
+                .border((2f * s).dp, if (fieldFocused) Green else Color.Transparent, RoundedCornerShape((12f * s).dp))
+                .padding(horizontal = (18f * s).dp, vertical = (14f * s).dp),
+            decorationBox = { inner ->
+                if (query.isEmpty()) {
+                    Text("Songs, artists, albums, playlists — press OK to type", color = Color.White.copy(alpha = 0.4f), fontSize = (22f * s).sp)
+                }
+                inner()
+            },
+        )
+        Spacer(Modifier.height((12f * s).dp))
+        val r = results
+        when {
+            submitted.length < 2 -> Hint("Type at least two letters.", s)
+            r == null -> Hint("Searching…", s)
+            r.code == 401 || r.code == 403 -> NeedsLogin(tv, s)
+            r.code != 200 -> Hint("Can't reach Spotify right now.", s)
+            r.tracks.isEmpty() && r.albums.isEmpty() && r.artists.isEmpty() && r.playlists.isEmpty() -> Hint("No results for “$submitted”.", s)
+            else -> LazyColumn(contentPadding = PaddingValues(bottom = (24f * s).dp), verticalArrangement = Arrangement.spacedBy((4f * s).dp)) {
+                if (r.tracks.isNotEmpty()) {
+                    item { SectionLabel("Songs", s) }
+                    items(r.tracks, key = { "t" + it.uri }) { e ->
+                        EntryRow(e, s, onLong = { tv.addToQueue(e.uri, e.title) }) { tv.playFromBrowse(uris = listOf(e.uri), label = e.title) }
+                    }
+                }
+                if (r.artists.isNotEmpty()) {
+                    item { SectionLabel("Artists", s) }
+                    items(r.artists, key = { "r" + it.uri }) { e -> EntryRow(e, s) { onOpen(e) } }
+                }
+                if (r.albums.isNotEmpty()) {
+                    item { SectionLabel("Albums", s) }
+                    items(r.albums, key = { "a" + it.uri }) { e -> EntryRow(e, s) { onOpen(e) } }
+                }
+                if (r.playlists.isNotEmpty()) {
+                    item { SectionLabel("Playlists", s) }
+                    items(r.playlists, key = { "p" + it.uri }) { e -> EntryRow(e, s) { onOpen(e) } }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DevicesPage(tv: TvViewModel, s: Float) {
+    val devices by produceState<List<SpotifyDevice>?>(null) { value = tv.catalog.devices() }
+    Column(Modifier.fillMaxSize()) {
+        PageTitle("Play on…", s)
+        val list = devices
+        when {
+            list == null -> Hint("Looking for devices…", s)
+            list.isEmpty() -> Hint("No Spotify devices found. Open Spotify on your phone, speaker or this TV, then come back.", s)
+            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy((4f * s).dp)) {
+                items(list, key = { it.id }) { d ->
+                    val label = when (d.type.lowercase()) {
+                        "tv" -> "TV"; "computer" -> "Computer"; "smartphone" -> "Phone"; "speaker" -> "Speaker"
+                        else -> d.type
+                    }
+                    Focusable(s, onClick = { tv.transferTo(d.id, d.name) }) {
+                        Column(Modifier.weight(1f)) {
+                            Text(d.name, color = Color.White, fontSize = (22f * s).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(label + (d.volume?.let { " · volume $it%" } ?: ""), color = Color.White.copy(alpha = 0.55f), fontSize = (16f * s).sp)
+                        }
+                        if (d.active) Text("Playing here", color = Green, fontSize = (18f * s).sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---- pieces -----------------------------------------------------------------------------------
+
+@Composable
+private fun Loaded(tv: TvViewModel, listing: Listing?, s: Float, content: @Composable (List<Entry>) -> Unit) {
+    when {
+        listing == null -> Hint("Loading…", s)
+        listing.code == 401 || listing.code == 403 -> NeedsLogin(tv, s)
+        !listing.ok -> Hint("Can't reach Spotify right now.", s)
+        listing.items.isEmpty() -> Hint("Nothing here yet.", s)
+        else -> content(listing.items)
+    }
+}
+
+@Composable
+private fun NeedsLogin(tv: TvViewModel, s: Float) {
+    Column {
+        Hint(
+            "Spotify needs your permission for this. The app now asks for library access, so log in once more " +
+                "(this also happens on first use after an update).", s,
+        )
+        Spacer(Modifier.height((14f * s).dp))
+        Pill("Log in again", s) { tv.logout() }
+    }
+}
+
+@Composable
+private fun PageTitle(text: String, s: Float) {
+    Text(text, color = Color.White, fontSize = (30f * s).sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = (12f * s).dp))
+}
+
+@Composable
+private fun SectionLabel(text: String, s: Float) {
+    Text(
+        text.uppercase(), color = Color.White.copy(alpha = 0.5f), fontSize = (14f * s).sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = (14f * s).dp, bottom = (4f * s).dp),
+    )
+}
+
+@Composable
+private fun Hint(text: String, s: Float) {
+    Text(text, color = Color.White.copy(alpha = 0.6f), fontSize = (20f * s).sp, modifier = Modifier.padding(top = (8f * s).dp))
+}
+
+@Composable
+private fun RailItem(label: String, selected: Boolean, s: Float, modifier: Modifier = Modifier, onSelect: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val source = remember { MutableInteractionSource() }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape((10f * s).dp))
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onSelect() // moving the cursor over the menu already opens the section
+            }
+            .background(
+                when {
+                    focused -> Color.White.copy(alpha = 0.18f)
+                    selected -> Color.White.copy(alpha = 0.08f)
+                    else -> Color.Transparent
+                },
+            )
+            .combinedClickableFocus(source, onSelect)
+            .padding(horizontal = (14f * s).dp, vertical = (12f * s).dp),
+    ) {
+        Text(
+            label, color = if (selected || focused) Color.White else Color.White.copy(alpha = 0.65f),
+            fontSize = (20f * s).sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+private fun Modifier.combinedClickableFocus(source: MutableInteractionSource, onClick: () -> Unit, onLong: (() -> Unit)? = null): Modifier =
+    this.combinedClickable(interactionSource = source, indication = null, onClick = onClick, onLongClick = onLong)
+
+/** A focusable row with the common highlight; the content goes inside a Row. */
+@Composable
+private fun Focusable(
+    s: Float,
+    modifier: Modifier = Modifier,
+    onLong: (() -> Unit)? = null,
+    onClick: () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val source = remember { MutableInteractionSource() }
+    androidx.compose.foundation.layout.Row(
+        modifier
+            .fillMaxWidth()
+            .onFocusChanged { focused = it.isFocused }
+            .clip(RoundedCornerShape((12f * s).dp))
+            .background(if (focused) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.035f))
+            .border((2f * s).dp, if (focused) Green else Color.Transparent, RoundedCornerShape((12f * s).dp))
+            .combinedClickableFocus(source, onClick, onLong)
+            .padding(horizontal = (14f * s).dp, vertical = (10f * s).dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy((16f * s).dp),
+        content = content,
+    )
+}
+
+/** A list row: picture, title, subtitle (and the length for songs). */
+@Composable
+private fun EntryRow(e: Entry, s: Float, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
+    Focusable(s, onLong = onLong, onClick = onClick) {
+        Thumb(e, (54f * s).dp)
+        Column(Modifier.weight(1f)) {
+            Text(e.title, color = Color.White, fontSize = (21f * s).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (e.subtitle.isNotEmpty()) {
+                Text(e.subtitle, color = Color.White.copy(alpha = 0.55f), fontSize = (16f * s).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (e.kind == Kind.TRACK && e.durationMs > 0) {
+            val sec = e.durationMs / 1000
+            Text("%d:%02d".format(sec / 60, sec % 60), color = Color.White.copy(alpha = 0.45f), fontSize = (16f * s).sp)
+        }
+    }
+}
+
+/** A big square card for the grids. */
+@Composable
+private fun Card(e: Entry, s: Float, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val source = remember { MutableInteractionSource() }
+    Column(
+        Modifier
+            .onFocusChanged { focused = it.isFocused }
+            .graphicsLayer {
+                val k = if (focused) 1.06f else 1f
+                scaleX = k; scaleY = k
+            }
+            .combinedClickableFocus(source, onClick),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(if (e.kind == Kind.ARTIST) CircleShape else RoundedCornerShape((10f * s).dp))
+                .border((3f * s).dp, if (focused) Green else Color.Transparent, if (e.kind == Kind.ARTIST) CircleShape else RoundedCornerShape((10f * s).dp)),
+        ) { Picture(e.imageUrl, Modifier.fillMaxSize()) }
+        Text(e.title, color = Color.White, fontSize = (17f * s).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = (6f * s).dp))
+        if (e.subtitle.isNotEmpty()) {
+            Text(e.subtitle, color = Color.White.copy(alpha = 0.55f), fontSize = (14f * s).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun Thumb(e: Entry, size: androidx.compose.ui.unit.Dp) {
+    Box(
+        Modifier.size(size).clip(if (e.kind == Kind.ARTIST) CircleShape else RoundedCornerShape(6.dp)),
+    ) { Picture(e.imageUrl, Modifier.fillMaxSize()) }
+}
+
+@Composable
+private fun Picture(url: String?, modifier: Modifier) {
+    val img = rememberImage(url)
+    if (img != null) {
+        Image(img, null, modifier, contentScale = ContentScale.Crop)
+    } else {
+        Box(modifier.background(Brush.linearGradient(listOf(Color(0xFF2A2A30), Color(0xFF1A1A1E)))))
+    }
+}
+
+@Composable
+private fun Pill(text: String, s: Float, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val source = remember { MutableInteractionSource() }
+    Box(
+        modifier
+            .onFocusChanged { focused = it.isFocused }
+            .graphicsLayer {
+                val k = if (focused) 1.08f else 1f
+                scaleX = k; scaleY = k
+            }
+            .clip(RoundedCornerShape(50))
+            .background(if (focused) Color.White else Green)
+            .combinedClickableFocus(source, onClick)
+            .padding(horizontal = (28f * s).dp, vertical = (12f * s).dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = if (focused) Color.Black else Color.Black, fontSize = (20f * s).sp, fontWeight = FontWeight.Bold)
+    }
+}

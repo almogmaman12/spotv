@@ -91,6 +91,9 @@ class PlayerRepository(
         _queue.value = api.queue()
     }
 
+    /** Ask Spotify for the current state again soon (after something else changed playback). */
+    fun refreshSoon(afterMs: Long = 600L) = wake(afterMs)
+
     private fun wake(afterMs: Long = 500L) {
         scope.launch {
             delay(afterMs)

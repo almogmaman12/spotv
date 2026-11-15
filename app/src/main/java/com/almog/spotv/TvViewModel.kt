@@ -3,6 +3,7 @@ package com.almog.spotv
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.almog.spotv.spotify.Catalog
 import com.almog.spotv.spotify.PairingServer
 import com.almog.spotv.spotify.PlayerRepository
 import com.almog.spotv.spotify.SpotifyApi
@@ -10,6 +11,7 @@ import com.almog.spotv.spotify.SpotifyAuth
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 /** Login state, the phone-login page and the player. Survives screen rotation / activity recreation. */
 class TvViewModel(app: Application) : AndroidViewModel(app) {
@@ -25,6 +27,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _pairingError = MutableStateFlow<String?>(null)
     val pairingError: StateFlow<String?> = _pairingError
+
+    val catalog = Catalog(api)
 
     val player = PlayerRepository(api, viewModelScope) {
         auth.logout()
@@ -63,9 +67,71 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleSettings() { _settingsOpen.value = !_settingsOpen.value }
     fun settingsChanged() { _settingsVersion.value = _settingsVersion.value + 1 }
 
+    private val _browseOpen = MutableStateFlow(false)
+
+    /** Whether the library / search screen is showing. */
+    val browseOpen: StateFlow<Boolean> = _browseOpen
+
+    fun openBrowse() { _browseOpen.value = true }
+    fun closeBrowse() { _browseOpen.value = false }
+
+    /**
+     * Start something from the library. With no active Spotify device (Spotify says 404) the music is moved
+     * to the first device we can find, so a song can be started from the TV even when nothing was playing.
+     */
+    fun playFromBrowse(
+        contextUri: String? = null,
+        uris: List<String>? = null,
+        offsetUri: String? = null,
+        label: String = "",
+    ) {
+        viewModelScope.launch {
+            var code = catalog.play(contextUri, uris, offsetUri)
+            if (code == 404) {
+                val device = catalog.devices().let { list -> list.firstOrNull { it.active } ?: list.firstOrNull() }
+                if (device == null) {
+                    AppStatus.report("play", "Open Spotify on a device first (phone, speaker or this TV)", AppStatus.WARN, 6000)
+                    return@launch
+                }
+                code = catalog.play(contextUri, uris, offsetUri, device.id)
+            }
+            if (code in 200..299) {
+                if (label.isNotEmpty()) AppStatus.report("play", "Playing $label", AppStatus.INFO, 2500)
+                _browseOpen.value = false
+                player.refreshSoon()
+            } else {
+                AppStatus.report("play", "Couldn't start that (Spotify said $code)", AppStatus.WARN, 5000)
+            }
+        }
+    }
+
+    fun addToQueue(uri: String, label: String) {
+        viewModelScope.launch {
+            val code = catalog.addToQueue(uri)
+            if (code in 200..299) {
+                AppStatus.report("queue", "Added to queue: $label", AppStatus.INFO, 2500)
+            } else {
+                AppStatus.report("queue", "Couldn't add to the queue (Spotify said $code)", AppStatus.WARN, 4000)
+            }
+        }
+    }
+
+    fun transferTo(deviceId: String, name: String) {
+        viewModelScope.launch {
+            val code = catalog.transfer(deviceId)
+            if (code in 200..299) {
+                AppStatus.report("device", "Playing on $name", AppStatus.INFO, 2500)
+                player.refreshSoon()
+            } else {
+                AppStatus.report("device", "Couldn't switch to $name (Spotify said $code)", AppStatus.WARN, 4000)
+            }
+        }
+    }
+
     fun logout() {
         auth.logout()
         _settingsOpen.value = false
+        _browseOpen.value = false
         _loggedIn.value = false
     }
 }
