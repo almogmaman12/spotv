@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>SpoTV speaker</title></head>
+<body>
+<script src="https://sdk.scdn.co/spotify-player.js"></script>
+<script>
+  // The Spotify Web Playback SDK turns this page into a Spotify device that plays on the TV's speakers.
+  window.onSpotifyWebPlaybackSDKReady = function () {
+    var player = new Spotify.Player({
+      name: Android.name(),
+      getOAuthToken: function (cb) { cb(Android.token()); },
+      volume: 0.8
+    });
+    player.addListener('ready', function (e) { Android.ready(e.device_id); });
+    player.addListener('not_ready', function (e) { Android.notReady(); });
+    ['initialization_error', 'authentication_error', 'account_error', 'playback_error'].forEach(function (k) {
+      player.addListener(k, function (e) { Android.error(k, (e && e.message) || ''); });
+    });
+    player.connect().then(function (ok) { if (!ok) Android.error('connect', 'Could not connect to Spotify'); });
+  };
+</script>
+</body>
+</html>

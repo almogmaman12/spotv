@@ -12,6 +12,7 @@ object TvPrefs {
     const val DRIFT = "ui_drift"                     // Boolean (burn-in protection)
     const val AMBIENT_MINUTES = "ui_ambient_minutes" // Int, 0 = off
     const val INTRO = "ui_song_intro"                // Boolean
+    const val SPEAKER = "speaker_enabled"            // Boolean (experimental in-app speaker)
 
     fun prefs(c: Context) = c.getSharedPreferences(Constants.PREF_NAME, Context.MODE_PRIVATE)
 }

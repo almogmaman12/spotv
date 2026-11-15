@@ -15,9 +15,11 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.almog.spotv.lyrics.viewmodel.LyricsViewModel
 import com.almog.spotv.spotify.NowPlaying
 import com.almog.spotv.spotify.QueueItem
+import com.almog.spotv.speaker.SpeakerController
 import com.almog.spotv.ui.TvRoot
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -25,6 +27,7 @@ class MainActivity : ComponentActivity() {
     private val tv: TvViewModel by viewModels()
     private val lyricsVm: LyricsViewModel by viewModels()
 
+    private var speaker: SpeakerController? = null
     private var lastTrackId: String? = null
     private val prefetched = LinkedHashSet<String>()
 
@@ -57,8 +60,21 @@ class MainActivity : ComponentActivity() {
                         syncLyrics(tv.player.state.value)
                     }
                 }
+                // The experimental in-app speaker follows its setting and the login.
+                launch {
+                    combine(tv.settingsVersion, tv.loggedIn) { _, loggedIn -> loggedIn }.collect { loggedIn ->
+                        val want = loggedIn && TvPrefs.prefs(this@MainActivity).getBoolean(TvPrefs.SPEAKER, false)
+                        val s = speaker ?: SpeakerController(this@MainActivity, tv.auth, lifecycleScope).also { speaker = it }
+                        if (want && !s.running) s.start() else if (!want && s.running) s.stop()
+                    }
+                }
             }
         }
+    }
+
+    override fun onDestroy() {
+        speaker?.stop()
+        super.onDestroy()
     }
 
     private suspend fun pairUntilLoggedIn() {

@@ -88,7 +88,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             var code = catalog.play(contextUri, uris, offsetUri)
             if (code == 404) {
-                val device = catalog.devices().let { list -> list.firstOrNull { it.active } ?: list.firstOrNull() }
+                val own = com.almog.spotv.speaker.SpeakerState.deviceId.value
+                val device = catalog.devices().let { list -> list.firstOrNull { it.active } ?: list.firstOrNull { it.id == own } ?: list.firstOrNull() }
                 if (device == null) {
                     AppStatus.report("play", "Open Spotify on a device first (phone, speaker or this TV)", AppStatus.WARN, 6000)
                     return@launch
