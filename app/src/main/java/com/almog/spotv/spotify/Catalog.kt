@@ -31,6 +31,8 @@ class SearchResults(
     val code: Int,
 )
 
+class QueueState(val now: Entry?, val next: List<Entry>, val code: Int)
+
 data class SpotifyDevice(val id: String, val name: String, val type: String, val active: Boolean, val volume: Int?)
 
 /** Browsing, search, library and device calls (the parts of the Web API a development-mode app still has). */
@@ -118,6 +120,18 @@ class Catalog(private val api: SpotifyApi) {
             Listing(entries(JSONObject(raw.body).optJSONArray("items"), Kind.ALBUM), 200)
         } catch (e: Exception) {
             Listing(emptyList(), -1)
+        }
+    }
+
+    suspend fun queueEntries(): QueueState {
+        val raw = api.call("GET", "/me/player/queue") ?: return QueueState(null, emptyList(), -1)
+        if (raw.code != 200) return QueueState(null, emptyList(), raw.code)
+        return try {
+            val j = JSONObject(raw.body)
+            val now = j.optJSONObject("currently_playing")?.let { entries(JSONArray().put(it), Kind.TRACK).firstOrNull() }
+            QueueState(now, entries(j.optJSONArray("queue"), Kind.TRACK), 200)
+        } catch (e: Exception) {
+            QueueState(null, emptyList(), -1)
         }
     }
 

@@ -83,6 +83,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val SpotifyGreen = Color(0xFF1DB954)
 
@@ -175,6 +176,7 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
                 settingsVersion = settingsVersion,
                 onOpenSettings = { tv.openSettings() },
                 onOpenBrowse = { tv.openBrowse() },
+                catalog = tv.catalog,
             )
         }
         if (browseOpen && loggedIn) BrowseScreen(tv)
@@ -244,7 +246,14 @@ private fun NowPlayingScreen(
     settingsVersion: Int,
     onOpenSettings: () -> Unit,
     onOpenBrowse: () -> Unit,
+    catalog: com.almog.spotv.spotify.Catalog,
 ) {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // Whether this song is in your Liked Songs (null = unknown or no permission yet: the heart is hidden).
+    var saved by remember(np.trackId) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(np.trackId) {
+        saved = if (np.isPodcast || np.trackId.isEmpty()) null else catalog.isSaved("spotify:track:${np.trackId}")
+    }
     val accent by androidx.compose.animation.animateColorAsState(
         cover?.accent ?: SpotifyGreen, animationSpec = tween(1500), label = "accent",
     )
@@ -495,6 +504,32 @@ private fun NowPlayingScreen(
                 TvButton(d(58f), onClick = { player.next() }) { fg -> drawNextIcon(fg) }
                 TvButton(d(50f), onClick = { player.cycleRepeat() }) { fg ->
                     drawRepeatIcon(if (np.repeat != "off") accentOn(fg) else fg, one = np.repeat == "track")
+                }
+                if (saved != null) {
+                    TvButton(d(44f), onClick = {
+                        val want = saved != true
+                        saved = want
+                        scope.launch {
+                            val code = catalog.setSaved("spotify:track:${np.trackId}", want)
+                            if (code !in 200..299) {
+                                saved = !want
+                                AppStatus.report("like", "Couldn't update Liked Songs (Spotify said $code)", AppStatus.WARN, 4000)
+                            }
+                        }
+                    }) { fg -> drawHeartIcon(if (saved == true) accent else fg, saved == true) }
+                }
+                np.volumePercent?.let { vol ->
+                    // OK mutes / unmutes; left and right change the volume while this button has the cursor.
+                    TvButton(
+                        d(44f),
+                        onClick = { player.volumeBy(if (vol > 0) -vol else 50) },
+                        modifier = Modifier.onPreviewKeyEvent { e ->
+                            if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { player.volumeBy(-5); true }
+                            else if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) { player.volumeBy(5); true }
+                            else false
+                        },
+                    ) { fg -> drawVolumeIcon(fg, vol == 0) }
+                    Text("$vol%", color = Color.White.copy(alpha = 0.7f), fontSize = t(16f))
                 }
                 TvButton(d(44f), onClick = onOpenBrowse) { fg -> drawListIcon(fg) }
                 TvButton(d(44f), onClick = onOpenSettings) { fg -> drawGearIcon(fg) }

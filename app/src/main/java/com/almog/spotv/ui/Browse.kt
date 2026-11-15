@@ -74,6 +74,7 @@ private enum class Section(val label: String) {
     LIKED("Liked songs"),
     ALBUMS("Albums"),
     ARTISTS("Artists"),
+    QUEUE("Queue"),
     DEVICES("Devices"),
 }
 
@@ -134,6 +135,7 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
                         Section.ALBUMS -> GridPage(tv, "Saved albums", s, { tv.catalog.savedAlbums() }) { stack.add(Detail(it)) }
                         Section.ARTISTS -> GridPage(tv, "Followed artists", s, { tv.catalog.followedArtists() }) { stack.add(Detail(it)) }
                         Section.LIKED -> LikedPage(tv, s)
+                        Section.QUEUE -> QueuePage(tv, s)
                         Section.DEVICES -> DevicesPage(tv, s)
                     }
                 }
@@ -296,6 +298,35 @@ private fun SearchPage(tv: TvViewModel, s: Float, onOpen: (Entry) -> Unit) {
                 if (r.playlists.isNotEmpty()) {
                     item { SectionLabel("Playlists", s) }
                     items(r.playlists, key = { "p" + it.uri }) { e -> EntryRow(e, s) { onOpen(e) } }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueuePage(tv: TvViewModel, s: Float) {
+    val q by produceState<com.almog.spotv.spotify.QueueState?>(null) { value = tv.catalog.queueEntries() }
+    Column(Modifier.fillMaxSize()) {
+        PageTitle("Queue", s)
+        val state = q
+        when {
+            state == null -> Hint("Loading…", s)
+            state.code == 401 || state.code == 403 -> NeedsLogin(tv, s)
+            state.code != 200 -> Hint("Can't reach Spotify right now.", s)
+            state.now == null && state.next.isEmpty() -> Hint("The queue is empty. Hold OK on a song to add it.", s)
+            else -> LazyColumn(contentPadding = PaddingValues(bottom = (24f * s).dp), verticalArrangement = Arrangement.spacedBy((4f * s).dp)) {
+                state.now?.let { now ->
+                    item { SectionLabel("Now playing", s) }
+                    item { EntryRow(now, s) { tv.closeBrowse() } }
+                }
+                if (state.next.isNotEmpty()) {
+                    item { SectionLabel("Next up", s) }
+                    items(state.next.size, key = { "q" + state.next[it].uri + it }) { i ->
+                        val e = state.next[i]
+                        // Spotify can't jump inside the queue, so OK starts the queue from this song.
+                        EntryRow(e, s) { tv.playFromBrowse(uris = state.next.drop(i).take(100).map { it.uri }, label = e.title) }
+                    }
                 }
             }
         }
