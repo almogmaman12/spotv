@@ -175,9 +175,14 @@ class PlayerRepository(
     }
 
     fun volumeBy(delta: Int) {
-        val np = _state.value ?: return
-        val current = np.volumePercent ?: return
-        val target = (current + delta).coerceIn(0, 100)
+        val current = _state.value?.volumePercent ?: return
+        setVolumePercent(current + delta)
+    }
+
+    /** Set an exact volume level. Used by voice ducking so restoring volume never accumulates drift. */
+    fun setVolumePercent(percent: Int) {
+        val target = percent.coerceIn(0, 100)
+        if (_state.value?.volumePercent == null) return
         _state.update { it?.copy(volumePercent = target) }
         scope.launch { api.volume(target) }
     }
