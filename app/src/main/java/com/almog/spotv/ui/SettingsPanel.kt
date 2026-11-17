@@ -66,6 +66,8 @@ fun SettingsPanel(
     screenHeightDp: Float,
     onChanged: () -> Unit,
     onLogout: () -> Unit,
+    djSessionStatus: String,
+    onStartDjSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -265,13 +267,18 @@ fun SettingsPanel(
                 onRight = { autoplay = !autoplay; flip(TvPrefs.AUTOPLAY, autoplay) },
             )
             SettingRow(
-                "DJ voice", if (dj) "On" else "Off", s,
-                note = "A voice announces each new song. Needs a device whose volume can be changed.",
+                "Track voice hints", if (dj) "On" else "Off", s,
+                note = "Temporary Android voice hints, not Spotify's real DJ.",
                 onLeft = { dj = !dj; flip(TvPrefs.DJ, dj) },
                 onRight = { dj = !dj; flip(TvPrefs.DJ, dj) },
             )
 
             Header("Experimental", s)
+            SettingRow(
+                "Connect Spotify DJ", djSessionStatus, s,
+                note = "Loads Spotify's real DJ session and track order. Narration audio mixing is still in development.",
+                onClick = onStartDjSession,
+            )
             SettingRow(
                 "In-app speaker", if (speakerOn) "On · $speakerStatus" else "Off", s,
                 note = "Plays music on this TV itself (needs Spotify Premium). Then pick “SpoTV” under Devices.",
