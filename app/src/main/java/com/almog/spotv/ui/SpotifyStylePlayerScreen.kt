@@ -74,6 +74,7 @@ internal fun SpotifyStylePlayerScreen(
     upNext: String?,
     onOpenBrowse: () -> Unit,
     onOpenSettings: () -> Unit,
+    onReturnToLyrics: () -> Unit,
 ) {
     val queue by player.queue.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -91,8 +92,12 @@ internal fun SpotifyStylePlayerScreen(
         liked = if (np.isPodcast || np.trackId.isBlank()) null else tv.catalog.isSaved("spotify:track:${np.trackId}")
     }
 
-    BackHandler(enabled = showQueue || showLyrics) {
-        if (showQueue) showQueue = false else showLyrics = false
+    BackHandler {
+        when {
+            showQueue -> showQueue = false
+            showLyrics -> showLyrics = false
+            else -> onReturnToLyrics()
+        }
     }
 
     LaunchedEffect(np.trackId, np.progressMs, np.takenAt, np.isPlaying) {
@@ -133,6 +138,7 @@ internal fun SpotifyStylePlayerScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.width(22.dp))
+                PlayerAction("Full lyrics", onReturnToLyrics)
                 PlayerAction("Browse", onOpenBrowse)
                 PlayerAction("Settings", onOpenSettings)
             }
