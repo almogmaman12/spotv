@@ -3,6 +3,7 @@ package com.almog.spotv.spotify
 import com.almog.spotv.Constants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class NativeDjNarrationLine(
@@ -23,6 +24,7 @@ data class NativeDjSession(
     val tracks: List<String>,
     val nextPage: String,
     val narration: Map<String, NativeDjTrackNarration>,
+    val narrationScheduled: Int,
 )
 
 /**
@@ -57,7 +59,7 @@ object NativePlaybackEngine {
             val connection = nativeConnect(token, Constants.SPOTIFY_CLIENT_ID)
             check(connection == "connected") { connection }
 
-            parseDjPage(nativeDjSession("", language))
+            prefetchNarration(parseDjPage(nativeDjSession("", language)))
         }
 
     /** Clear the native session and its authenticated connection when the account signs out. */
@@ -70,8 +72,17 @@ object NativePlaybackEngine {
         withContext(Dispatchers.IO) {
             require(page.startsWith("hm://")) { "Invalid Spotify DJ continuation page." }
             check(isAvailable()) { "The native Spotify engine is unavailable on this device." }
-            parseDjPage(nativeDjSession(page, language))
+            prefetchNarration(parseDjPage(nativeDjSession(page, language)))
         }
+
+    private fun prefetchNarration(session: NativeDjSession): NativeDjSession {
+        if (session.tracks.isEmpty()) return session
+        val result = runCatching {
+            nativePrefetchDj(JSONArray(session.tracks).toString())
+        }.getOrDefault("scheduled:0")
+        val scheduled = result.substringAfter("scheduled:", "0").toIntOrNull() ?: 0
+        return session.copy(narrationScheduled = scheduled)
+    }
 
     private fun parseDjPage(raw: String): NativeDjSession {
         val json = JSONObject(raw)
@@ -99,6 +110,7 @@ object NativePlaybackEngine {
             tracks = tracks.distinct(),
             nextPage = json.optString("next"),
             narration = narration,
+            narrationScheduled = 0,
         )
     }
 
@@ -122,6 +134,9 @@ object NativePlaybackEngine {
 
     @JvmStatic
     private external fun nativeDjSession(page: String, language: String): String
+
+    @JvmStatic
+    private external fun nativePrefetchDj(tracksJson: String): String
 
     @JvmStatic
     private external fun nativeDisconnect()
