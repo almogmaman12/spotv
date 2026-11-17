@@ -16,7 +16,7 @@ import java.util.Locale
 class DjVoice(
     context: Context,
     private val scope: CoroutineScope,
-    private val volumeBy: (Int) -> Unit,
+    private val setVolumePercent: (Int) -> Unit,
     private val enabled: () -> Boolean,
 ) {
     private var ready = false
@@ -36,13 +36,17 @@ class DjVoice(
         if (first || !np.isPlaying || !ready || busy || !enabled()) return
         val line = lines[(System.nanoTime() % lines.size).toInt().let { if (it < 0) -it else it }]
             .format(np.title, np.primaryArtist)
-        scope.launch { speak(line) }
+        busy = true
+        scope.launch { speak(line, np.volumePercent) }
     }
 
-    private suspend fun speak(line: String) {
-        busy = true
+    private suspend fun speak(line: String, originalVolume: Int?) {
+        var ducked = false
         try {
-            volumeBy(-DUCK)
+            if (originalVolume != null) {
+                setVolumePercent((originalVolume - DUCK).coerceAtLeast(0))
+                ducked = true
+            }
             val done = kotlinx.coroutines.CompletableDeferred<Unit>()
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
@@ -50,12 +54,16 @@ class DjVoice(
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String?) { done.complete(Unit) }
             })
-            tts.speak(line, TextToSpeech.QUEUE_FLUSH, null, "dj")
-            kotlinx.coroutines.withTimeoutOrNull(12_000) { done.await() }
-            delay(300)
+            val result = tts.speak(line, TextToSpeech.QUEUE_FLUSH, null, "dj")
+            if (result == TextToSpeech.SUCCESS) {
+                kotlinx.coroutines.withTimeoutOrNull(12_000) { done.await() }
+                delay(300)
+            }
         } finally {
-            // Always give the volume back, even if talking failed.
-            try { volumeBy(DUCK) } catch (_: Exception) {}
+            // Restore the exact starting level, avoiding volume drift after repeated announcements.
+            if (ducked && originalVolume != null) {
+                try { setVolumePercent(originalVolume) } catch (_: Exception) {}
+            }
             busy = false
         }
     }
