@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import com.almog.spotv.Constants
 
@@ -39,6 +41,7 @@ class PlayerRepository(
     val connected: StateFlow<Boolean> = _connected
 
     private val kick = Channel<Unit>(Channel.CONFLATED)
+    private val volumeMutex = Mutex()
     private var lastQueueTrack: String? = null
     private var lastQueueAt = 0L
 
@@ -184,6 +187,6 @@ class PlayerRepository(
         val target = percent.coerceIn(0, 100)
         if (_state.value?.volumePercent == null) return
         _state.update { it?.copy(volumePercent = target) }
-        scope.launch { api.volume(target) }
+        scope.launch { volumeMutex.withLock { api.volume(target) } }
     }
 }
