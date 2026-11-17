@@ -21,6 +21,7 @@ use tokio::runtime::Runtime;
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 static SESSION: OnceLock<Mutex<Option<Session>>> = OnceLock::new();
 static DJ_METADATA: OnceLock<Mutex<HashMap<String, serde_json::Value>>> = OnceLock::new();
+static DJ_AUDIO: OnceLock<Mutex<HashMap<(String, String), Vec<u8>>>> = OnceLock::new();
 
 const DJ_CONTEXT_URI: &str = "spotify:playlist:37i9dQZF1EYkqdzj48dyYq";
 const SPCLIENT: &str = "https://spclient.wg.spotify.com";
@@ -34,6 +35,10 @@ fn runtime() -> &'static Runtime {
             .build()
             .expect("could not start SpotV native runtime")
     })
+}
+
+fn dj_audio() -> &'static Mutex<HashMap<(String, String), Vec<u8>>> {
+    DJ_AUDIO.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn dj_metadata() -> &'static Mutex<HashMap<String, serde_json::Value>> {
@@ -137,6 +142,174 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeD
     if let Ok(mut known) = dj_metadata().lock() {
         known.clear();
     }
+    if let Ok(mut clips) = dj_audio().lock() {
+        clips.clear();
+    }
+}
+
+fn protobuf_varint(out: &mut Vec<u8>, mut value: u64) {
+    while value >= 0x80 {
+        out.push((value as u8 & 0x7f) | 0x80);
+        value >>= 7;
+    }
+    out.push(value as u8);
+}
+
+fn dj_tts_request(line: &serde_json::Value) -> Result<Vec<u8>, String> {
+    let ssml = line.get("ssml").and_then(|value| value.as_str())
+        .ok_or_else(|| "DJ narration line has no SSML".to_string())?;
+    let voice = line.get("voice").and_then(|value| value.as_str())
+        .and_then(|value| value.strip_prefix("VOICE"))
+        .and_then(|value| value.parse::<u64>().ok()).unwrap_or(1);
+    let provider_name = line.get("provider").and_then(|value| value.as_str()).unwrap_or("");
+    let provider = match provider_name {
+        "CLOUD_TTS" => 1,
+        "READSPEAKER" => 2,
+        "POLLY" => 3,
+        "WELL_SAID" => 4,
+        "SONANTIC_DEPRECATED" => 5,
+        "SONANTIC_FAST" | "" => 6,
+        "OPENAI" => 7,
+        "SONANTIC_LARGE" => 8,
+        "ELEVEN_LABS_DEPRECATED" => 9,
+        "ADS_PUBLIC" => 10,
+        _ => 6,
+    };
+
+    let mut out = Vec::new();
+    protobuf_varint(&mut out, (2 << 3) | 2);
+    protobuf_varint(&mut out, ssml.len() as u64);
+    out.extend_from_slice(ssml.as_bytes());
+    for (field, value) in [(3u64, 5u64), (5, voice), (6, provider), (7, 44_100)] {
+        protobuf_varint(&mut out, field << 3);
+        protobuf_varint(&mut out, value);
+    }
+    Ok(out)
+}
+
+async fn fetch_dj_clip(
+    session: &Session,
+    token_type: &str,
+    access_token: &str,
+    line: &serde_json::Value,
+) -> Result<Vec<u8>, String> {
+    let request = http::Request::builder()
+        .method(http::Method::POST)
+        .uri(format!("{SPCLIENT}/client-tts/v1/fulfill"))
+        .header(
+            http::header::AUTHORIZATION,
+            format!("{token_type} {access_token}"),
+        )
+        .header(http::header::ACCEPT, "application/json")
+        .header(http::header::CONTENT_TYPE, "application/x-protobuf")
+        .header("app-platform", "Android")
+        .header("spotify-app-version", APP_VERSION)
+        .body(bytes::Bytes::from(dj_tts_request(line)?))
+        .map_err(|error| format!("could not create DJ narration request: {error}"))?;
+
+    // The TTS service responds with a redirect whose Location is the generated clip.
+    let response = session
+        .http_client()
+        .request_fut(request)
+        .map_err(|error| format!("could not send DJ narration request: {error}"))?
+        .await
+        .map_err(|error| format!("DJ narration request failed: {error}"))?;
+    let location = response
+        .headers()
+        .get(http::header::LOCATION)
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| format!("DJ narration service returned HTTP {} without a clip URL", response.status()))?
+        .to_string();
+
+    let audio_request = http::Request::builder()
+        .method(http::Method::GET)
+        .uri(location.as_str())
+        .body(bytes::Bytes::new())
+        .map_err(|error| format!("could not create DJ clip download: {error}"))?;
+    let audio = session
+        .http_client()
+        .request_body(audio_request)
+        .await
+        .map_err(|error| format!("could not download DJ narration clip: {error}"))?;
+    if audio.is_empty() {
+        return Err("Spotify returned an empty DJ narration clip".to_string());
+    }
+    Ok(audio.to_vec())
+}
+
+/// Start fetching narration for the first few DJ tracks without blocking playback.
+#[no_mangle]
+pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativePrefetchDj(
+    mut env: JNIEnv<'_>,
+    _class: JClass<'_>,
+    tracks_json: JString<'_>,
+) -> jstring {
+    let raw = match env.get_string(&tracks_json) {
+        Ok(value) => value.to_string_lossy().into_owned(),
+        Err(error) => return into_java_string(&mut env, format!("invalid DJ track list: {error}")),
+    };
+    let tracks: Vec<String> = match serde_json::from_str(&raw) {
+        Ok(tracks) => tracks,
+        Err(error) => return into_java_string(&mut env, format!("invalid DJ track list: {error}")),
+    };
+
+    let session = match get_session() {
+        Ok(session) => session,
+        Err(error) => return into_java_string(&mut env, error),
+    };
+    let metadata = match dj_metadata().lock() {
+        Ok(known) => known.clone(),
+        Err(_) => return into_java_string(&mut env, "DJ metadata lock was poisoned".to_string()),
+    };
+
+    let mut work = Vec::<(String, String, serde_json::Value)>::new();
+    for uri in tracks {
+        if let Some(lines) = metadata.get(&uri) {
+            for kind in ["intro", "jump", "outro"] {
+                if let Some(line) = lines.get(kind) {
+                    let already_cached = dj_audio().lock()
+                        .map(|clips| clips.contains_key(&(uri.clone(), kind.to_string())))
+                        .unwrap_or(false);
+                    if !already_cached {
+                        work.push((uri.clone(), kind.to_string(), line.clone()));
+                    }
+                }
+            }
+        }
+    }
+    work.truncate(10);
+    let scheduled = work.len();
+    if scheduled == 0 {
+        return into_java_string(&mut env, "scheduled:0".to_string());
+    }
+
+    let runtime_handle = runtime().handle().clone();
+    runtime_handle.spawn(async move {
+        let token = match session.login5().auth_token().await {
+            Ok(token) => token,
+            Err(error) => {
+                log::warn!("DJ narration prefetch could not obtain a token: {error}");
+                return;
+            }
+        };
+        for (uri, kind, line) in work {
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(20),
+                fetch_dj_clip(&session, &token.token_type, &token.access_token, &line),
+            ).await {
+                Ok(Ok(audio)) => {
+                    if let Ok(mut clips) = dj_audio().lock() {
+                        clips.insert((uri.clone(), kind.clone()), audio);
+                    }
+                    log::info!("DJ narration cached: {kind} for {uri}");
+                }
+                Ok(Err(error)) => log::warn!("DJ narration failed for {uri} ({kind}): {error}"),
+                Err(_) => log::warn!("DJ narration timed out for {uri} ({kind})"),
+            }
+        }
+    });
+
+    into_java_string(&mut env, format!("scheduled:{scheduled}"))
 }
 
 /// Fetch one page of Spotify's DJ session. The response contains track URIs
