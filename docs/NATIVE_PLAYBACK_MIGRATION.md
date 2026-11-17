@@ -21,16 +21,26 @@ native layer independently implemented.
    focus, lifecycle handling, and playback state events.
 4. Connect player: make SpotTV a Connect device and route queue, seek, shuffle,
    repeat, volume and track changes through the native player.
-5. Spotify DJ: implement DJ session pagination and narration, then feed the
-   resulting track queue into the native player.
+5. Spotify DJ: implement the actual session, not a playlist shortcut:
+   - authenticate the native session and request
+     `lexicon-session-provider/context-resolve/v2/session` for the DJ context;
+   - follow the session's `next_page_url` and deduplicate its track history;
+   - read the per-track intro/jump/outro narration metadata;
+   - request Spotify's narration audio from `client-tts/v1/fulfill`;
+   - decode and mix the narration into the same PCM output as the music, with
+     ducking and prefetching so the music never waits for speech.
 6. UI cutover: connect the player UI to native state, retaining Web API
    metadata/catalogue calls where appropriate.
 
 ## Current status
 
-Milestone 1 is the only completed milestone at this point. The existing
-Web API-based player remains active until native playback and reconnect have
-passed device-level tests. Do not expose a native playback toggle before then.
+Milestone 1 is the only completed milestone at this point. The existing Web API-based player remains active until native playback and
+reconnect have passed device-level tests. Do not expose a native playback
+toggle before then. The old Android TTS announcements are only temporary
+voice hints, not Spotify's DJ. They cannot produce Square-style DJ narration
+while playback is happening on a different Spotify Connect device. The real
+DJ must run inside SpotV's native Connect player so music and speech share one
+audio output.
 
 ## Build
 
