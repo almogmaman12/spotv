@@ -45,6 +45,11 @@ object NativePlaybackEngine {
             parseDjPage(nativeDjSession("", language))
         }
 
+    /** Clear the native session and its authenticated connection when the account signs out. */
+    fun disconnect() {
+        if (loaded) runCatching { nativeDisconnect() }
+    }
+
     /** Fetch another DJ page using the continuation URL returned by Spotify. */
     suspend fun nextDjPage(page: String, language: String = "en"): NativeDjSession =
         withContext(Dispatchers.IO) {
@@ -76,4 +81,7 @@ object NativePlaybackEngine {
 
     @JvmStatic
     private external fun nativeDjSession(page: String, language: String): String
+
+    @JvmStatic
+    private external fun nativeDisconnect()
 }
