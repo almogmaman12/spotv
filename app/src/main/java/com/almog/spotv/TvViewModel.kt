@@ -56,7 +56,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
                 val session = NativePlaybackEngine.startDj(auth)
                 _djSession.value = session
                 _djSessionStatus.value = if (session.tracks.isEmpty()) "Connected, no tracks returned"
-                    else "Connected · ${session.tracks.size} tracks ready"
+                    else "Connected · ${session.tracks.size} tracks found"
                 AppStatus.report("dj", "Spotify DJ session connected", AppStatus.INFO, 3500)
             } catch (error: Exception) {
                 _djSessionStatus.value = error.message ?: "Could not connect"
