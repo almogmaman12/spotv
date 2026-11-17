@@ -21,9 +21,7 @@ object Constants {
     const val SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
     const val SPOTIFY_AUTH_BASE_URL = "https://accounts.spotify.com/authorize"
     const val SPOTIFY_API = "https://api.spotify.com/v1"
-    const val SPOTIFY_SCOPES = "user-read-playback-state user-read-currently-playing user-modify-playback-state " +
-        "user-library-read user-library-modify playlist-read-private playlist-read-collaborative " +
-        "user-follow-read user-read-recently-played user-top-read streaming user-read-private user-read-email"
+    const val SPOTIFY_SCOPES = "user-read-playback-state user-read-currently-playing user-modify-playback-state"
 
     /** Port range tried for the phone-login page the TV serves on the local network. */
     const val PAIRING_PORT_FIRST = 8765

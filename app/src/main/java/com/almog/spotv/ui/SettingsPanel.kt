@@ -20,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -99,10 +98,6 @@ fun SettingsPanel(
     var livingBg by remember { mutableStateOf(prefs.getBoolean(TvPrefs.LIVING_BG, true)) }
     var drift by remember { mutableStateOf(prefs.getBoolean(TvPrefs.DRIFT, true)) }
     var intro by remember { mutableStateOf(prefs.getBoolean(TvPrefs.INTRO, true)) }
-    var autoplay by remember { mutableStateOf(prefs.getBoolean(TvPrefs.AUTOPLAY, true)) }
-    var dj by remember { mutableStateOf(prefs.getBoolean(TvPrefs.DJ, false)) }
-    var speakerOn by remember { mutableStateOf(prefs.getBoolean(TvPrefs.SPEAKER, false)) }
-    val speakerStatus by com.almog.spotv.speaker.SpeakerState.status.collectAsState()
     var ambient by remember { mutableStateOf(prefs.getInt(TvPrefs.AMBIENT_MINUTES, 5)) }
 
     fun flip(key: String, now: Boolean) { prefs.edit().putBoolean(key, now).apply(); onChanged() }
@@ -256,28 +251,6 @@ fun SettingsPanel(
             SettingRow("Clock after pause", if (ambient == 0) "Off" else "$ambient min", s,
                 note = "Shows a big clock and the cover when music stays paused.",
                 onLeft = { setAmbient(-1) }, onRight = { setAmbient(1) })
-
-            Header("Playback", s)
-            SettingRow(
-                "Autoplay", if (autoplay) "On" else "Off", s,
-                note = "When the queue runs out, keep playing similar songs.",
-                onLeft = { autoplay = !autoplay; flip(TvPrefs.AUTOPLAY, autoplay) },
-                onRight = { autoplay = !autoplay; flip(TvPrefs.AUTOPLAY, autoplay) },
-            )
-            SettingRow(
-                "DJ voice", if (dj) "On" else "Off", s,
-                note = "A voice announces each new song. Needs a device whose volume can be changed.",
-                onLeft = { dj = !dj; flip(TvPrefs.DJ, dj) },
-                onRight = { dj = !dj; flip(TvPrefs.DJ, dj) },
-            )
-
-            Header("Experimental", s)
-            SettingRow(
-                "In-app speaker", if (speakerOn) "On · $speakerStatus" else "Off", s,
-                note = "Plays music on this TV itself (needs Spotify Premium). Then pick “SpoTV” under Devices.",
-                onLeft = { speakerOn = !speakerOn; flip(TvPrefs.SPEAKER, speakerOn) },
-                onRight = { speakerOn = !speakerOn; flip(TvPrefs.SPEAKER, speakerOn) },
-            )
 
             Header("Account and data", s)
             SettingRow(

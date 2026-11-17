@@ -6,7 +6,6 @@ import com.almog.spotv.DebugLog
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -29,23 +28,18 @@ sealed class PlaybackResult {
 /** The few Spotify Web API calls this app needs. */
 class SpotifyApi(private val auth: SpotifyAuth) {
 
-    internal class Raw(val code: Int, val body: String, val retryAfterSec: Long, val rttMs: Long)
+    private class Raw(val code: Int, val body: String, val retryAfterSec: Long, val rttMs: Long)
 
-    internal suspend fun call(
+    private suspend fun call(
         method: String,
         path: String,
         query: String? = null,
-        jsonBody: String? = null,
     ): Raw? = withContext(Dispatchers.IO) {
         var token = auth.accessToken() ?: return@withContext null
         var result: Raw? = null
         for (attempt in 0..1) {
             val url = Constants.SPOTIFY_API + path + (if (query != null) "?$query" else "")
-            val body = if (method == "GET") null else if (jsonBody != null) {
-                jsonBody.toRequestBody("application/json".toMediaType())
-            } else {
-                ByteArray(0).toRequestBody(null)
-            }
+            val body = if (method == "GET") null else ByteArray(0).toRequestBody(null)
             val request = Request.Builder().url(url).method(method, body)
                 .header("Authorization", "Bearer $token").build()
             val started = SystemClock.elapsedRealtime()
@@ -108,9 +102,6 @@ class SpotifyApi(private val auth: SpotifyAuth) {
                     title = item.optString("name"),
                     artist = if (isEpisode) show?.optString("name").orEmpty() else names.joinToString(", "),
                     primaryArtist = if (isEpisode) show?.optString("name").orEmpty() else names.firstOrNull().orEmpty(),
-                    artistId = artists?.optJSONObject(0)?.optString("id").orEmpty(),
-                    albumId = album?.optString("id").orEmpty(),
-                    contextUri = json.optJSONObject("context")?.optString("uri")?.takeIf { it.isNotEmpty() },
                     album = if (isEpisode) show?.optString("name").orEmpty() else album?.optString("name").orEmpty(),
                     coverUrl = cover?.takeIf { it.isNotEmpty() },
                     durationMs = item.optLong("duration_ms", 0L),

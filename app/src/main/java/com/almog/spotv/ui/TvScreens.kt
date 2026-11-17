@@ -11,10 +11,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -86,7 +83,6 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 private val SpotifyGreen = Color(0xFF1DB954)
 
@@ -107,7 +103,6 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
     val status by AppStatus.status.collectAsStateWithLifecycle()
     val settingsOpen by tv.settingsOpen.collectAsStateWithLifecycle()
     val settingsVersion by tv.settingsVersion.collectAsStateWithLifecycle()
-    val browseOpen by tv.browseOpen.collectAsStateWithLifecycle()
 
     // Keep the last cover until the next one has loaded, so the backdrop never flashes black.
     var cover by remember { mutableStateOf<Cover?>(null) }
@@ -168,7 +163,7 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
     ) {
         when {
             !loggedIn -> LoginScreen(tv)
-            current == null -> IdleScreen(connected, onOpenSettings = { tv.openSettings() }, onOpenBrowse = { tv.openBrowse() })
+            current == null -> IdleScreen(connected, onOpenSettings = { tv.openSettings() })
             else -> NowPlayingScreen(
                 np = current,
                 upNext = queue.firstOrNull()?.let { if (it.artist.isBlank()) it.title else "${it.title} — ${it.artist}" },
@@ -178,11 +173,8 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
                 settingsOpen = settingsOpen,
                 settingsVersion = settingsVersion,
                 onOpenSettings = { tv.openSettings() },
-                onOpenBrowse = { tv.openBrowse() },
-                tv = tv,
             )
         }
-        if (browseOpen && loggedIn) BrowseScreen(tv)
         if (settingsOpen && loggedIn) {
             // A panel over the right-hand side, so lyric changes show live beside it.
             SettingsPanel(
@@ -248,20 +240,7 @@ private fun NowPlayingScreen(
     settingsOpen: Boolean,
     settingsVersion: Int,
     onOpenSettings: () -> Unit,
-    onOpenBrowse: () -> Unit,
-    tv: TvViewModel,
 ) {
-    val catalog = tv.catalog
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var volumeAdjust by remember { mutableStateOf(false) }
-    var moreOpen by remember { mutableStateOf(false) }
-    BackHandler(enabled = volumeAdjust) { volumeAdjust = false }
-    BackHandler(enabled = moreOpen) { moreOpen = false }
-    // Whether this song is in your Liked Songs (null = unknown or no permission yet: the heart is hidden).
-    var saved by remember(np.trackId) { mutableStateOf<Boolean?>(null) }
-    LaunchedEffect(np.trackId) {
-        saved = if (np.isPodcast || np.trackId.isEmpty()) null else catalog.isSaved("spotify:track:${np.trackId}")
-    }
     val accent by androidx.compose.animation.animateColorAsState(
         cover?.accent ?: SpotifyGreen, animationSpec = tween(1500), label = "accent",
     )
@@ -282,9 +261,6 @@ private fun NowPlayingScreen(
     }
     LaunchedEffect(settingsOpen) {
         if (settingsOpen) controlsShown = false
-    }
-    LaunchedEffect(controlsShown) {
-        if (!controlsShown) { volumeAdjust = false; moreOpen = false }
     }
     val playFocus = remember { FocusRequester() }
     // Whenever the controls come up (or go away), focus is back on play / pause.
@@ -448,13 +424,6 @@ private fun NowPlayingScreen(
             }
         }
 
-        if (moreOpen && controlsShown) {
-            MoreMenu(
-                np, tv, s, { moreOpen = false },
-                Modifier.align(Alignment.BottomEnd).padding(end = d(48f), bottom = d(120f)),
-            )
-        }
-
         // A thin progress line stays at the bottom while the controls are hidden.
         Box(
             Modifier
@@ -523,117 +492,9 @@ private fun NowPlayingScreen(
                 TvButton(d(50f), onClick = { player.cycleRepeat() }) { fg ->
                     drawRepeatIcon(if (np.repeat != "off") accentOn(fg) else fg, one = np.repeat == "track")
                 }
-                if (saved != null) {
-                    TvButton(d(44f), onClick = {
-                        val want = saved != true
-                        saved = want
-                        scope.launch {
-                            val code = catalog.setSaved("spotify:track:${np.trackId}", want)
-                            if (code !in 200..299) {
-                                saved = !want
-                                AppStatus.report("like", "Couldn't update Liked Songs (Spotify said $code)", AppStatus.WARN, 4000)
-                            }
-                        }
-                    }) { fg -> drawHeartIcon(if (saved == true) accent else fg, saved == true) }
-                }
-                np.volumePercent?.let { vol ->
-                    // OK starts "adjust": left/right then change the volume, up/down (or Back, or OK) leave it.
-                    // Otherwise the side keys would trap the cursor on this button.
-                    TvButton(
-                        d(44f),
-                        onClick = { volumeAdjust = !volumeAdjust },
-                        ringColor = accent,
-                        modifier = Modifier.onPreviewKeyEvent { e ->
-                            if (!volumeAdjust || e.type != KeyEventType.KeyDown) {
-                                false
-                            } else {
-                                when (e.key) {
-                                    Key.DirectionLeft -> { player.volumeBy(-5); true }
-                                    Key.DirectionRight -> { player.volumeBy(5); true }
-                                    Key.DirectionUp, Key.DirectionDown -> { volumeAdjust = false; false }
-                                    else -> false
-                                }
-                            }
-                        },
-                    ) { fg -> drawVolumeIcon(if (volumeAdjust) accent else fg, vol == 0) }
-                    Text(
-                        if (volumeAdjust) "◀  $vol%  ▶" else "$vol%",
-                        color = if (volumeAdjust) accent else Color.White.copy(alpha = 0.7f),
-                        fontSize = t(16f), fontWeight = if (volumeAdjust) FontWeight.Bold else FontWeight.Normal,
-                    )
-                }
-                TvButton(d(44f), onClick = { moreOpen = !moreOpen }) { fg -> drawMoreIcon(fg) }
-                TvButton(d(44f), onClick = onOpenBrowse) { fg -> drawListIcon(fg) }
                 TvButton(d(44f), onClick = onOpenSettings) { fg -> drawGearIcon(fg) }
             }
         }
-    }
-}
-
-/** A small pop-up of extra actions for the current song. */
-@Composable
-private fun MoreMenu(
-    np: NowPlaying,
-    tv: TvViewModel,
-    s: Float,
-    onClose: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val sleepAt by tv.sleepAt.collectAsStateWithLifecycle()
-    val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        try { first.requestFocus() } catch (_: IllegalStateException) {}
-    }
-    Column(
-        modifier
-            .clip(RoundedCornerShape((16f * s).dp))
-            .background(Color(0xE6181818))
-            .padding((10f * s).dp)
-            .width((300f * s).dp),
-        verticalArrangement = Arrangement.spacedBy((4f * s).dp),
-    ) {
-        MenuItem("Go to artist", s, Modifier.focusRequester(first)) {
-            if (np.artistId.isNotEmpty()) {
-                tv.openBrowse(com.almog.spotv.spotify.Entry(com.almog.spotv.spotify.Kind.ARTIST, np.artistId, "spotify:artist:${np.artistId}", np.primaryArtist, "Artist", null))
-            }
-            onClose()
-        }
-        MenuItem("Go to album", s) {
-            if (np.albumId.isNotEmpty()) {
-                tv.openBrowse(com.almog.spotv.spotify.Entry(com.almog.spotv.spotify.Kind.ALBUM, np.albumId, "spotify:album:${np.albumId}", np.album, np.primaryArtist, np.coverUrl))
-            }
-            onClose()
-        }
-        MenuItem("Start radio from this song", s) {
-            tv.autoQueue.startRadio(np)
-            AppStatus.report("radio", "Adding similar songs to the queue", AppStatus.INFO, 3000)
-            onClose()
-        }
-        val steps = listOf(0, 15, 30, 60)
-        MenuItem(
-            if (sleepAt == null) "Sleep timer: off" else "Sleep timer: ${((sleepAt!! - System.currentTimeMillis()) / 60_000L + 1).coerceAtLeast(1)} min left",
-            s,
-        ) {
-            val remaining = sleepAt?.let { ((it - System.currentTimeMillis()) / 60_000L).toInt() } ?: 0
-            val next = steps.firstOrNull { it > remaining } ?: 0
-            tv.setSleepMinutes(next)
-        }
-    }
-}
-
-@Composable
-private fun MenuItem(text: String, s: Float, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    Box(
-        modifier
-            .fillMaxWidth()
-            .onFocusChanged { focused = it.isFocused }
-            .clip(RoundedCornerShape((10f * s).dp))
-            .background(if (focused) Color.White.copy(alpha = 0.2f) else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = (16f * s).dp, vertical = (12f * s).dp),
-    ) {
-        Text(text, color = Color.White, fontSize = (19f * s).sp, fontWeight = if (focused) FontWeight.Bold else FontWeight.Normal)
     }
 }
 
@@ -783,7 +644,7 @@ private fun Step(number: String, text: String, s: Float) {
 }
 
 @Composable
-private fun IdleScreen(connected: Boolean, onOpenSettings: () -> Unit, onOpenBrowse: () -> Unit) {
+private fun IdleScreen(connected: Boolean, onOpenSettings: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF121212)), contentAlignment = Alignment.Center) {
         val s = maxHeight.value / 540f
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = (80f * s).dp)) {
@@ -794,7 +655,7 @@ private fun IdleScreen(connected: Boolean, onOpenSettings: () -> Unit, onOpenBro
             if (connected) {
                 Spacer(Modifier.height((12f * s).dp))
                 Text(
-                    "Pick something to play, or start a song in Spotify on your phone and it shows up here.",
+                    "Start a song in Spotify on your phone or this TV and it will show up here.",
                     color = Color.White.copy(alpha = 0.6f), fontSize = (22f * s).sp, textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height((28f * s).dp))
@@ -805,12 +666,7 @@ private fun IdleScreen(connected: Boolean, onOpenSettings: () -> Unit, onOpenBro
                     } catch (_: IllegalStateException) {
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy((20f * s).dp), verticalAlignment = Alignment.CenterVertically) {
-                    TvButton((64f * s).dp, onClick = onOpenBrowse, focusRequester = focus, primary = true) { fg -> drawListIcon(fg) }
-                    TvButton((56f * s).dp, onClick = onOpenSettings) { fg -> drawGearIcon(fg) }
-                }
-                Spacer(Modifier.height((10f * s).dp))
-                Text("Browse your music", color = Color.White.copy(alpha = 0.55f), fontSize = (18f * s).sp)
+                TvButton((56f * s).dp, onClick = onOpenSettings, focusRequester = focus) { fg -> drawGearIcon(fg) }
             }
         }
     }
