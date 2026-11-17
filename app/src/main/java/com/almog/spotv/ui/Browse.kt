@@ -69,7 +69,6 @@ import kotlinx.coroutines.delay
 private val Green = Color(0xFF1DB954)
 private val Panel = Color(0xFF121212)
 
-/** Spotify's own DJ playlist. Whether it can be started from here depends on the account / region. */
 private enum class Section(val label: String) {
     HOME("Home"),
     SEARCH("Search"),
@@ -112,8 +111,8 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
                 verticalArrangement = Arrangement.spacedBy((6f * s).dp),
             ) {
                 Text(
-                    "Library", color = Color.White.copy(alpha = 0.5f), fontSize = (16f * s).sp,
-                    modifier = Modifier.padding(start = (12f * s).dp, bottom = (10f * s).dp),
+                    "Your Library", color = Color.White, fontSize = (23f * s).sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = (12f * s).dp, bottom = (14f * s).dp),
                 )
                 val first = remember { FocusRequester() }
                 LaunchedEffect(Unit) {
@@ -545,10 +544,17 @@ private fun RailItem(label: String, selected: Boolean, s: Float, modifier: Modif
             .combinedClickableFocus(source, onSelect)
             .padding(horizontal = (14f * s).dp, vertical = (12f * s).dp),
     ) {
-        Text(
-            label, color = if (selected || focused) Color.White else Color.White.copy(alpha = 0.65f),
-            fontSize = (20f * s).sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy((12f * s).dp)) {
+            Box(
+                Modifier.width((3f * s).dp).height((22f * s).dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (selected) Green else Color.Transparent),
+            )
+            Text(
+                label, color = if (selected || focused) Color.White else Color.White.copy(alpha = 0.65f),
+                fontSize = (19f * s).sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            )
+        }
     }
 }
 
