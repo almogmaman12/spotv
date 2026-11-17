@@ -33,9 +33,10 @@ GPL-3.0 application code is not copied into SpotV.
 
 The native session handshake and Spotify DJ context-page request are now
 wired through JNI and exposed by the experimental "Connect Spotify DJ"
-settings action. It retrieves the real DJ session's track URIs and continuation
-address. It does not yet play those tracks, request narration audio, or mix
-speech with music.
+settings action. It retrieves the real DJ session's track URIs, continuation
+address, and available per-track intro/jump/outro narration metadata. It does
+not yet synthesize narration audio, play those tracks natively, or mix speech
+with music.
 
 The existing Web API player remains active until native playback and reconnect
 have passed device-level tests. Do not expose a native playback toggle before
