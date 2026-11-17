@@ -37,6 +37,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val player = PlayerRepository(api, viewModelScope) {
+        NativePlaybackEngine.disconnect()
         auth.logout()
         _loggedIn.value = false
     }
@@ -208,6 +209,9 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun logout() {
+        NativePlaybackEngine.disconnect()
+        _djSession.value = null
+        _djSessionStatus.value = "Not connected"
         auth.logout()
         _settingsOpen.value = false
         _browseOpen.value = false
