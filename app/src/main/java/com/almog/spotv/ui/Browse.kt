@@ -171,7 +171,7 @@ private fun MiniPlayer(tv: TvViewModel, s: Float) {
 
     Column(Modifier.fillMaxWidth().background(Color(0xFF181818))) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = (22f * s).dp, vertical = (10f * s).dp),
+            Modifier.fillMaxWidth().focusGroup().padding(horizontal = (22f * s).dp, vertical = (10f * s).dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy((14f * s).dp),
         ) {
