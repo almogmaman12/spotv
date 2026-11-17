@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -106,6 +107,7 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
             // The menu on the left.
             Column(
                 Modifier
+                    .focusGroup()
                     .width((220f * s).dp)
                     .fillMaxHeight()
                     .background(Color.Black)
@@ -133,7 +135,7 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
                 }
             }
 
-            Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = (32f * s).dp, vertical = (24f * s).dp)) {
+            Box(Modifier.weight(1f).fillMaxHeight().focusGroup().padding(horizontal = (32f * s).dp, vertical = (24f * s).dp)) {
                 val top = stack.lastOrNull()
                 if (top != null) {
                     DetailPage(tv, top, s) { stack.add(Detail(it)) }
@@ -189,8 +191,7 @@ private fun MiniPlayer(tv: TvViewModel, s: Float) {
                     color = Color.White.copy(alpha = 0.58f), fontSize = (12f * s).sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Text("FULL LYRICS  ↗", color = Green, fontSize = (12f * s).sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { tv.closeBrowse() }.padding(top = (3f * s).dp))
+                Pill("Full lyrics", s) { tv.closeBrowse() }
             }
         }
         Box(Modifier.fillMaxWidth().height((2f * s).dp).background(Color.White.copy(alpha = 0.10f))) {
@@ -256,6 +257,7 @@ private fun Shelf(title: String, list: List<Entry>, s: Float, onOpen: (Entry) ->
     Column {
         Text(title, color = Color.White, fontSize = (21f * s).sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = (8f * s).dp))
         androidx.compose.foundation.lazy.LazyRow(
+            modifier = Modifier.focusGroup(),
             contentPadding = PaddingValues(vertical = (6f * s).dp, horizontal = (4f * s).dp),
             horizontalArrangement = Arrangement.spacedBy((16f * s).dp),
         ) {
@@ -616,6 +618,9 @@ private fun Card(e: Entry, s: Float, onClick: () -> Unit) {
     Column(
         Modifier
             .onFocusChanged { focused = it.isFocused }
+            .clip(RoundedCornerShape((12f * s).dp))
+            .background(if (focused) Color.White.copy(alpha = 0.10f) else Color.Transparent)
+            .border((2f * s).dp, if (focused) Green else Color.Transparent, RoundedCornerShape((12f * s).dp))
             .graphicsLayer {
                 val k = if (focused) 1.06f else 1f
                 scaleX = k; scaleY = k
