@@ -117,6 +117,19 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeC
     into_java_string(&mut env, result.unwrap_or_else(|error| error))
 }
 
+/// Tear down the authenticated session when the user signs out.
+#[no_mangle]
+pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeDisconnect(
+    _env: JNIEnv<'_>,
+    _class: JClass<'_>,
+) {
+    if let Ok(mut guard) = session_slot().lock() {
+        if let Some(session) = guard.take() {
+            session.shutdown();
+        }
+    }
+}
+
 /// Fetch one page of Spotify's DJ session. The response contains track URIs
 /// and the next page address; narration audio is a separate next milestone.
 #[no_mangle]
@@ -156,7 +169,7 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeD
 
         let request = http::Request::builder()
             .method(http::Method::GET)
-            .uri(&url)
+            .uri(url.as_str())
             .header(
                 http::header::AUTHORIZATION,
                 format!("{} {}", token.token_type, token.access_token),
