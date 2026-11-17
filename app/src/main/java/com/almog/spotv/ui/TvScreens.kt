@@ -107,6 +107,7 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
     val status by AppStatus.status.collectAsStateWithLifecycle()
     val settingsOpen by tv.settingsOpen.collectAsStateWithLifecycle()
     val settingsVersion by tv.settingsVersion.collectAsStateWithLifecycle()
+    val djSessionStatus by tv.djSessionStatus.collectAsStateWithLifecycle()
     val browseOpen by tv.browseOpen.collectAsStateWithLifecycle()
 
     // Keep the last cover until the next one has loaded, so the backdrop never flashes black.
@@ -197,6 +198,8 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
                 screenHeightDp = maxHeight.value,
                 onChanged = { tv.settingsChanged() },
                 onLogout = { tv.logout() },
+                djSessionStatus = djSessionStatus,
+                onStartDjSession = { tv.startDjSession() },
                 modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.55f),
             )
         }
