@@ -1,8 +1,6 @@
 name: Build
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -24,7 +22,6 @@ jobs:
             exit 1
           fi
           echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
-          # sdkmanager closes the pipe after accepting licenses, so don't treat yes' SIGPIPE as a failure.
           set +o pipefail
           yes | "$SDKMANAGER" --licenses
           set -o pipefail
@@ -43,11 +40,8 @@ jobs:
       - name: Debug APK
         run: ./gradlew --no-daemon assembleDebug
         env:
-          # Optional: add these as repository secrets to get an APK that can log in / fetch lyrics.
           SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPICY_LYRICS_API_KEY: ${{ secrets.SPICY_LYRICS_API_KEY }}
-      # SpicyLyricsJsonTest.backgroundLine_attachesToOverlappingLead_andOrphanIsPromoted also fails in
-      # SpotifyTablet (the engine code is identical), so the tests report but don't block the APK.
       - name: Unit tests
         continue-on-error: true
         run: ./gradlew --no-daemon testDebugUnitTest
