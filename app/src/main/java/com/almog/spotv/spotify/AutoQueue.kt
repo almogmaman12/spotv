@@ -32,10 +32,14 @@ class AutoQueue(
     }
 
     /** "Start radio": queue a handful of songs like this one right now. */
-    fun startRadio(np: NowPlaying, count: Int = 6) = add(np, count)
+    fun startRadio(np: NowPlaying, count: Int = 6) {
+        if (!busy) add(np, count)
+    }
 
     private fun add(np: NowPlaying, count: Int) {
+        if (busy || count <= 0) return
         busy = true
+        history.add(np.trackId)
         scope.launch {
             try {
                 val fromArtist = ArrayList<Entry>()
@@ -44,9 +48,17 @@ class AutoQueue(
                         fromArtist += catalog.albumTracks(album).items
                     }
                 }
-                val likedSongs = liked ?: catalog.savedTracks().items.also { liked = it }
+
+                // Avoid downloading up to four pages of Liked Songs when the artist already
+                // gives us enough candidates. It makes the common radio path much quicker.
+                val fallback = if (fromArtist.size < count) {
+                    liked ?: catalog.savedTracks().items.also { liked = it }
+                } else {
+                    emptyList()
+                }
+
                 repeat(count) {
-                    val pick = pick(fromArtist, likedSongs, history, Random) ?: return@repeat
+                    val pick = pick(fromArtist, fallback, history, Random) ?: return@repeat
                     history.add(pick.id)
                     catalog.addToQueue(pick.uri)
                 }
