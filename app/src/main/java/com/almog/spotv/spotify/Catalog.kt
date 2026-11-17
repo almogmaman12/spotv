@@ -123,10 +123,11 @@ class Catalog(private val api: SpotifyApi) {
         )
     }
 
-    suspend fun followedArtists(): Listing {
-        val raw = api.call("GET", "/me/following", "type=artist&limit=50") ?: return Listing(emptyList(), -1)
-        if (raw.code != 200) return Listing(emptyList(), raw.code)
-        return try {
+    suspend fun followedArtists(): Listing = cachedListing("library:artists") {
+        val raw = api.call("GET", "/me/following", "type=artist&limit=50")
+            ?: return@cachedListing Listing(emptyList(), -1)
+        if (raw.code != 200) return@cachedListing Listing(emptyList(), raw.code)
+        try {
             Listing(entries(JSONObject(raw.body).optJSONObject("artists")?.optJSONArray("items"), Kind.ARTIST), 200)
         } catch (e: Exception) {
             Listing(emptyList(), -1)
@@ -241,8 +242,17 @@ class Catalog(private val api: SpotifyApi) {
         }
     }
 
-    suspend fun setSaved(uri: String, saved: Boolean): Int =
-        api.call(if (saved) "PUT" else "DELETE", "/me/library", "uris=${URLEncoder.encode(uri, "UTF-8")}")?.code ?: -1
+    suspend fun setSaved(uri: String, saved: Boolean): Int {
+        val code = api.call(
+            if (saved) "PUT" else "DELETE",
+            "/me/library",
+            "uris=${URLEncoder.encode(uri, "UTF-8")}",
+        )?.code ?: -1
+        if (code in 200..299) {
+            synchronized(listingCache) { listingCache.remove("library:tracks") }
+        }
+        return code
+    }
 
     // ---- parsing ---------------------------------------------------------------------------
 
