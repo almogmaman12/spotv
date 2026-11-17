@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.almog.spotv.spotify.Catalog
 import com.almog.spotv.spotify.PairingServer
 import com.almog.spotv.spotify.PlayerRepository
+import com.almog.spotv.spotify.NativePlaybackEngine
+import com.almog.spotv.spotify.NativeDjSession
 import com.almog.spotv.spotify.SpotifyApi
 import com.almog.spotv.spotify.SpotifyAuth
 import java.io.IOException
@@ -37,6 +39,29 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     val player = PlayerRepository(api, viewModelScope) {
         auth.logout()
         _loggedIn.value = false
+    }
+
+    private val _djSessionStatus = MutableStateFlow("Not connected")
+    val djSessionStatus: StateFlow<String> = _djSessionStatus
+
+    private val _djSession = MutableStateFlow<NativeDjSession?>(null)
+    val djSession: StateFlow<NativeDjSession?> = _djSession
+
+    fun startDjSession() {
+        if (_djSessionStatus.value == "Connecting…") return
+        viewModelScope.launch {
+            _djSessionStatus.value = "Connecting…"
+            try {
+                val session = NativePlaybackEngine.startDj(auth)
+                _djSession.value = session
+                _djSessionStatus.value = if (session.tracks.isEmpty()) "Connected, no tracks returned"
+                    else "Connected · ${session.tracks.size} tracks ready"
+                AppStatus.report("dj", "Spotify DJ session connected", AppStatus.INFO, 3500)
+            } catch (error: Exception) {
+                _djSessionStatus.value = error.message ?: "Could not connect"
+                AppStatus.report("dj", "Spotify DJ: ${_djSessionStatus.value}", AppStatus.WARN, 6000)
+            }
+        }
     }
 
     val dj = DjVoice(app, viewModelScope, { player.setVolumePercent(it) }) {
