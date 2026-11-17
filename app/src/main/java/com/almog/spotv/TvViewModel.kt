@@ -39,7 +39,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         _loggedIn.value = false
     }
 
-    val dj = DjVoice(app, viewModelScope, { player.volumeBy(it) }) {
+    val dj = DjVoice(app, viewModelScope, { player.setVolumePercent(it) }) {
         TvPrefs.prefs(app).getBoolean(TvPrefs.DJ, false)
     }
 
