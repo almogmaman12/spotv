@@ -251,19 +251,25 @@ private fun NowPlayingScreen(
     onOpenBrowse: () -> Unit,
     tv: TvViewModel,
 ) {
-    SpotifyStylePlayerScreen(
-        np = np,
-        cover = cover?.image,
-        blurredCover = cover?.blurred,
-        accent = cover?.accent ?: SpotifyGreen,
-        player = player,
-        lyricsVm = lyricsVm,
-        tv = tv,
-        upNext = upNext,
-        onOpenBrowse = onOpenBrowse,
-        onOpenSettings = onOpenSettings,
-    )
-    return
+    // Lyrics remain the primary screen. The Spotify-style player is an optional view.
+    var showSpotifyPlayer by remember(np.trackId) { mutableStateOf(false) }
+    BackHandler(enabled = showSpotifyPlayer) { showSpotifyPlayer = false }
+    if (showSpotifyPlayer) {
+        SpotifyStylePlayerScreen(
+            np = np,
+            cover = cover?.image,
+            blurredCover = cover?.blurred,
+            accent = cover?.accent ?: SpotifyGreen,
+            player = player,
+            lyricsVm = lyricsVm,
+            tv = tv,
+            upNext = upNext,
+            onOpenBrowse = onOpenBrowse,
+            onOpenSettings = onOpenSettings,
+            onReturnToLyrics = { showSpotifyPlayer = false },
+        )
+        return
+    }
 
     val catalog = tv.catalog
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -579,6 +585,7 @@ private fun NowPlayingScreen(
                 TvButton(d(44f), onClick = { moreOpen = !moreOpen }) { fg -> drawMoreIcon(fg) }
                 TvButton(d(44f), onClick = onOpenBrowse) { fg -> drawListIcon(fg) }
                 TvButton(d(44f), onClick = onOpenSettings) { fg -> drawGearIcon(fg) }
+                TvButton(d(44f), onClick = { showSpotifyPlayer = true }) { fg -> drawListIcon(fg) }
             }
         }
     }
