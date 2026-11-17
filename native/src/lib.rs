@@ -134,6 +134,9 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeD
             session.shutdown();
         }
     }
+    if let Ok(mut known) = dj_metadata().lock() {
+        known.clear();
+    }
 }
 
 /// Fetch one page of Spotify's DJ session. The response contains track URIs
@@ -218,7 +221,7 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeD
                             for kind in ["intro", "jump", "outro"] {
                                 let field = |name: &str| {
                                     let key = format!("narration.{kind}.{name}");
-                                    metadata.get(key).and_then(|value| value.as_str()).map(str::to_string)
+                                    metadata.get(key.as_str()).and_then(|value| value.as_str()).map(str::to_string)
                                 };
                                 if let Some(ssml) = field("ssml").filter(|value| !value.is_empty()) {
                                     let line = serde_json::json!({
