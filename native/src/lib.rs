@@ -293,11 +293,17 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeP
             }
         };
         for (uri, kind, line) in work {
+            if session.is_invalid() {
+                break;
+            }
             match tokio::time::timeout(
                 std::time::Duration::from_secs(20),
                 fetch_dj_clip(&session, &token.token_type, &token.access_token, &line),
             ).await {
                 Ok(Ok(audio)) => {
+                    if session.is_invalid() {
+                        break;
+                    }
                     if let Ok(mut clips) = dj_audio().lock() {
                         clips.insert((uri.clone(), kind.clone()), audio);
                     }
