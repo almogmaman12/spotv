@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
@@ -108,7 +114,18 @@ internal fun SpotifyStylePlayerScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFF101010))) {
+    Box(
+        Modifier.fillMaxSize().background(Color(0xFF101010))
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.MediaPlayPause -> { player.playPause(); true }
+                    Key.MediaNext -> { player.next(); true }
+                    Key.MediaPrevious -> { player.previous(); true }
+                    else -> false
+                }
+            },
+    ) {
         if (blurredCover != null) {
             Image(
                 bitmap = blurredCover,
@@ -124,8 +141,8 @@ internal fun SpotifyStylePlayerScreen(
                 )
             )
         )
-        Column(Modifier.fillMaxSize().padding(horizontal = 38.dp, vertical = 22.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.fillMaxSize().focusGroup().padding(horizontal = 38.dp, vertical = 22.dp)) {
+            Row(Modifier.focusGroup(), verticalAlignment = Alignment.CenterVertically) {
                 Text("♫", color = PlayerGreen, fontSize = 27.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(10.dp))
                 Text("SPOTV", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -198,7 +215,7 @@ internal fun SpotifyStylePlayerScreen(
                     Modifier.weight(1.08f).fillMaxHeight(),
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.focusGroup(), verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             if (showLyrics) "LYRICS" else "NOW PLAYING",
                             color = PlayerGreen,
@@ -282,7 +299,7 @@ internal fun SpotifyStylePlayerScreen(
                         Text(playerTime(np.durationMs), color = PlayerMuted, fontSize = 13.sp)
                     }
                     Row(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().focusGroup(),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -304,7 +321,7 @@ internal fun SpotifyStylePlayerScreen(
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().focusGroup(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
