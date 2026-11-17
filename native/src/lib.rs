@@ -199,11 +199,12 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeD
             }
         }
 
+        let count = tracks.len();
         Ok::<String, String>(
             serde_json::json!({
                 "tracks": tracks,
                 "next": next,
-                "count": tracks.len(),
+                "count": count,
             })
             .to_string(),
         )
