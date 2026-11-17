@@ -353,7 +353,7 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeD
             format!("/{rest}")
         };
         let url = format!("{SPCLIENT}{path}");
-        let language = if language.is_empty() { "en" } else { &language };
+        let language: &str = if language.is_empty() { "en" } else { language.as_str() };
 
         let request = http::Request::builder()
             .method(http::Method::GET)
