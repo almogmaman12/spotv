@@ -99,6 +99,8 @@ fun SettingsPanel(
     var livingBg by remember { mutableStateOf(prefs.getBoolean(TvPrefs.LIVING_BG, true)) }
     var drift by remember { mutableStateOf(prefs.getBoolean(TvPrefs.DRIFT, true)) }
     var intro by remember { mutableStateOf(prefs.getBoolean(TvPrefs.INTRO, true)) }
+    var autoplay by remember { mutableStateOf(prefs.getBoolean(TvPrefs.AUTOPLAY, true)) }
+    var dj by remember { mutableStateOf(prefs.getBoolean(TvPrefs.DJ, false)) }
     var speakerOn by remember { mutableStateOf(prefs.getBoolean(TvPrefs.SPEAKER, false)) }
     val speakerStatus by com.almog.spotv.speaker.SpeakerState.status.collectAsState()
     var ambient by remember { mutableStateOf(prefs.getInt(TvPrefs.AMBIENT_MINUTES, 5)) }
@@ -254,6 +256,20 @@ fun SettingsPanel(
             SettingRow("Clock after pause", if (ambient == 0) "Off" else "$ambient min", s,
                 note = "Shows a big clock and the cover when music stays paused.",
                 onLeft = { setAmbient(-1) }, onRight = { setAmbient(1) })
+
+            Header("Playback", s)
+            SettingRow(
+                "Autoplay", if (autoplay) "On" else "Off", s,
+                note = "When the queue runs out, keep playing similar songs.",
+                onLeft = { autoplay = !autoplay; flip(TvPrefs.AUTOPLAY, autoplay) },
+                onRight = { autoplay = !autoplay; flip(TvPrefs.AUTOPLAY, autoplay) },
+            )
+            SettingRow(
+                "DJ voice", if (dj) "On" else "Off", s,
+                note = "A voice announces each new song. Needs a device whose volume can be changed.",
+                onLeft = { dj = !dj; flip(TvPrefs.DJ, dj) },
+                onRight = { dj = !dj; flip(TvPrefs.DJ, dj) },
+            )
 
             Header("Experimental", s)
             SettingRow(

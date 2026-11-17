@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -91,6 +92,10 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
         val s = maxHeight.value / 540f
         var section by remember { mutableStateOf(Section.PLAYLISTS) }
         val stack = remember { mutableStateListOf<Detail>() }
+        val target by tv.browseTarget.collectAsStateWithLifecycle()
+        LaunchedEffect(target) {
+            target?.let { stack.clear(); stack.add(Detail(it)) }
+        }
         BackHandler { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) else tv.closeBrowse() }
 
         Row(Modifier.fillMaxSize()) {

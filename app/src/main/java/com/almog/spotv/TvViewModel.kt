@@ -30,9 +30,22 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     val catalog = Catalog(api)
 
+    val autoQueue = com.almog.spotv.spotify.AutoQueue(catalog, viewModelScope) {
+        TvPrefs.prefs(app).getBoolean(TvPrefs.AUTOPLAY, true)
+    }
+
     val player = PlayerRepository(api, viewModelScope) {
         auth.logout()
         _loggedIn.value = false
+    }
+
+    val dj = DjVoice(app, viewModelScope, { player.volumeBy(it) }) {
+        TvPrefs.prefs(app).getBoolean(TvPrefs.DJ, false)
+    }
+
+    override fun onCleared() {
+        dj.shutdown()
+        super.onCleared()
     }
 
     /** Serves the phone-login page until a phone has logged in. Cancel it to stop. */
@@ -72,8 +85,37 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     /** Whether the library / search screen is showing. */
     val browseOpen: StateFlow<Boolean> = _browseOpen
 
-    fun openBrowse() { _browseOpen.value = true }
-    fun closeBrowse() { _browseOpen.value = false }
+    /** When set, the browse screen opens straight on this artist / album / playlist ("go to artist"). */
+    private val _browseTarget = MutableStateFlow<com.almog.spotv.spotify.Entry?>(null)
+    val browseTarget: StateFlow<com.almog.spotv.spotify.Entry?> = _browseTarget
+
+    fun openBrowse(target: com.almog.spotv.spotify.Entry? = null) {
+        _browseTarget.value = target
+        _browseOpen.value = true
+    }
+
+    private val _sleepAt = MutableStateFlow<Long?>(null)
+
+    /** Wall-clock time when the music will pause by itself, or null when no sleep timer is set. */
+    val sleepAt: StateFlow<Long?> = _sleepAt
+    private var sleepJob: kotlinx.coroutines.Job? = null
+
+    fun setSleepMinutes(minutes: Int) {
+        sleepJob?.cancel()
+        if (minutes <= 0) {
+            _sleepAt.value = null
+            return
+        }
+        val at = System.currentTimeMillis() + minutes * 60_000L
+        _sleepAt.value = at
+        sleepJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(minutes * 60_000L)
+            player.pause()
+            _sleepAt.value = null
+            AppStatus.report("sleep", "Sleep timer: music paused", AppStatus.INFO, 6000)
+        }
+    }
+    fun closeBrowse() { _browseOpen.value = false; _browseTarget.value = null }
 
     /**
      * Start something from the library. With no active Spotify device (Spotify says 404) the music is moved

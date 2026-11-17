@@ -136,3 +136,7 @@ fun DrawScope.drawVolumeIcon(c: Color, muted: Boolean) {
         drawArc(c, -45f, 90f, false, Offset(w * 0.34f, h * 0.24f), Size(w * 0.46f, h * 0.52f), style = Stroke(w * 0.06f, cap = StrokeCap.Round))
     }
 }
+
+fun DrawScope.drawMoreIcon(c: Color) {
+    for (i in 0 until 3) drawCircle(c, radius = size.width * 0.07f, center = Offset(size.width * (0.28f + 0.22f * i), size.height / 2f))
+}

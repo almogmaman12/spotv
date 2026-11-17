@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity() {
                 }
                 launch { tv.player.state.collect { syncLyrics(it) } }
                 launch { tv.player.queue.collect { prefetchLyrics(it) } }
+                launch { tv.player.state.collect { tv.dj.onState(it) } }
+                // Keep the music going when the queue runs out.
+                launch { combine(tv.player.state, tv.player.queue) { n, q -> n to q }.collect { (n, q) -> tv.autoQueue.onState(n, q) } }
                 // A setting changed: re-read the size and timing and re-sync the lyrics.
                 launch {
                     tv.settingsVersion.collect {

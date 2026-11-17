@@ -176,7 +176,7 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
                 settingsVersion = settingsVersion,
                 onOpenSettings = { tv.openSettings() },
                 onOpenBrowse = { tv.openBrowse() },
-                catalog = tv.catalog,
+                tv = tv,
             )
         }
         if (browseOpen && loggedIn) BrowseScreen(tv)
@@ -246,9 +246,14 @@ private fun NowPlayingScreen(
     settingsVersion: Int,
     onOpenSettings: () -> Unit,
     onOpenBrowse: () -> Unit,
-    catalog: com.almog.spotv.spotify.Catalog,
+    tv: TvViewModel,
 ) {
+    val catalog = tv.catalog
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var volumeAdjust by remember { mutableStateOf(false) }
+    var moreOpen by remember { mutableStateOf(false) }
+    BackHandler(enabled = volumeAdjust) { volumeAdjust = false }
+    BackHandler(enabled = moreOpen) { moreOpen = false }
     // Whether this song is in your Liked Songs (null = unknown or no permission yet: the heart is hidden).
     var saved by remember(np.trackId) { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(np.trackId) {
@@ -274,6 +279,9 @@ private fun NowPlayingScreen(
     }
     LaunchedEffect(settingsOpen) {
         if (settingsOpen) controlsShown = false
+    }
+    LaunchedEffect(controlsShown) {
+        if (!controlsShown) { volumeAdjust = false; moreOpen = false }
     }
     val playFocus = remember { FocusRequester() }
     // Whenever the controls come up (or go away), focus is back on play / pause.
@@ -437,6 +445,13 @@ private fun NowPlayingScreen(
             }
         }
 
+        if (moreOpen && controlsShown) {
+            MoreMenu(
+                np, tv, s, { moreOpen = false },
+                Modifier.align(Alignment.BottomEnd).padding(end = d(48f), bottom = d(120f)),
+            )
+        }
+
         // A thin progress line stays at the bottom while the controls are hidden.
         Box(
             Modifier
@@ -519,22 +534,103 @@ private fun NowPlayingScreen(
                     }) { fg -> drawHeartIcon(if (saved == true) accent else fg, saved == true) }
                 }
                 np.volumePercent?.let { vol ->
-                    // OK mutes / unmutes; left and right change the volume while this button has the cursor.
+                    // OK starts "adjust": left/right then change the volume, up/down (or Back, or OK) leave it.
+                    // Otherwise the side keys would trap the cursor on this button.
                     TvButton(
                         d(44f),
-                        onClick = { player.volumeBy(if (vol > 0) -vol else 50) },
+                        onClick = { volumeAdjust = !volumeAdjust },
+                        ringColor = accent,
                         modifier = Modifier.onPreviewKeyEvent { e ->
-                            if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { player.volumeBy(-5); true }
-                            else if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) { player.volumeBy(5); true }
-                            else false
+                            if (!volumeAdjust || e.type != KeyEventType.KeyDown) {
+                                false
+                            } else {
+                                when (e.key) {
+                                    Key.DirectionLeft -> { player.volumeBy(-5); true }
+                                    Key.DirectionRight -> { player.volumeBy(5); true }
+                                    Key.DirectionUp, Key.DirectionDown -> { volumeAdjust = false; false }
+                                    else -> false
+                                }
+                            }
                         },
-                    ) { fg -> drawVolumeIcon(fg, vol == 0) }
-                    Text("$vol%", color = Color.White.copy(alpha = 0.7f), fontSize = t(16f))
+                    ) { fg -> drawVolumeIcon(if (volumeAdjust) accent else fg, vol == 0) }
+                    Text(
+                        if (volumeAdjust) "◀  $vol%  ▶" else "$vol%",
+                        color = if (volumeAdjust) accent else Color.White.copy(alpha = 0.7f),
+                        fontSize = t(16f), fontWeight = if (volumeAdjust) FontWeight.Bold else FontWeight.Normal,
+                    )
                 }
+                TvButton(d(44f), onClick = { moreOpen = !moreOpen }) { fg -> drawMoreIcon(fg) }
                 TvButton(d(44f), onClick = onOpenBrowse) { fg -> drawListIcon(fg) }
                 TvButton(d(44f), onClick = onOpenSettings) { fg -> drawGearIcon(fg) }
             }
         }
+    }
+}
+
+/** A small pop-up of extra actions for the current song. */
+@Composable
+private fun MoreMenu(
+    np: NowPlaying,
+    tv: TvViewModel,
+    s: Float,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val sleepAt by tv.sleepAt.collectAsStateWithLifecycle()
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { first.requestFocus() } catch (_: IllegalStateException) {}
+    }
+    Column(
+        modifier
+            .clip(RoundedCornerShape((16f * s).dp))
+            .background(Color(0xE6181818))
+            .padding((10f * s).dp)
+            .width((300f * s).dp),
+        verticalArrangement = Arrangement.spacedBy((4f * s).dp),
+    ) {
+        MenuItem("Go to artist", s, Modifier.focusRequester(first)) {
+            if (np.artistId.isNotEmpty()) {
+                tv.openBrowse(com.almog.spotv.spotify.Entry(com.almog.spotv.spotify.Kind.ARTIST, np.artistId, "spotify:artist:${np.artistId}", np.primaryArtist, "Artist", null))
+            }
+            onClose()
+        }
+        MenuItem("Go to album", s) {
+            if (np.albumId.isNotEmpty()) {
+                tv.openBrowse(com.almog.spotv.spotify.Entry(com.almog.spotv.spotify.Kind.ALBUM, np.albumId, "spotify:album:${np.albumId}", np.album, np.primaryArtist, np.coverUrl))
+            }
+            onClose()
+        }
+        MenuItem("Start radio from this song", s) {
+            tv.autoQueue.startRadio(np)
+            AppStatus.report("radio", "Adding similar songs to the queue", AppStatus.INFO, 3000)
+            onClose()
+        }
+        val steps = listOf(0, 15, 30, 60)
+        MenuItem(
+            if (sleepAt == null) "Sleep timer: off" else "Sleep timer: ${((sleepAt!! - System.currentTimeMillis()) / 60_000L + 1).coerceAtLeast(1)} min left",
+            s,
+        ) {
+            val remaining = sleepAt?.let { ((it - System.currentTimeMillis()) / 60_000L).toInt() } ?: 0
+            val next = steps.firstOrNull { it > remaining } ?: 0
+            tv.setSleepMinutes(next)
+        }
+    }
+}
+
+@Composable
+private fun MenuItem(text: String, s: Float, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        modifier
+            .fillMaxWidth()
+            .onFocusChanged { focused = it.isFocused }
+            .clip(RoundedCornerShape((10f * s).dp))
+            .background(if (focused) Color.White.copy(alpha = 0.2f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = (16f * s).dp, vertical = (12f * s).dp),
+    ) {
+        Text(text, color = Color.White, fontSize = (19f * s).sp, fontWeight = if (focused) FontWeight.Bold else FontWeight.Normal)
     }
 }
 

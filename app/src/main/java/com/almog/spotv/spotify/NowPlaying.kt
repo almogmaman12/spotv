@@ -10,6 +10,11 @@ data class NowPlaying(
     val artist: String,
     /** First artist only: what the lyric sources match on. */
     val primaryArtist: String,
+    /** Spotify ids for "go to artist / album" and for picking what to play next. */
+    val artistId: String,
+    val albumId: String,
+    /** The album / playlist / artist the song is playing from, or null (e.g. a single song). */
+    val contextUri: String?,
     val album: String,
     val coverUrl: String?,
     val durationMs: Long,
