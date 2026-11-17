@@ -319,11 +319,11 @@ internal fun SpotifyStylePlayerScreen(
                                 }
                             }
                         }, active = liked == true)
-                        PlayerAction(if (djEnabled) "DJ On" else "DJ Off", {
+                        PlayerAction(if (djEnabled) "Voice hints On" else "Voice hints Off", {
                             djEnabled = !djEnabled
                             TvPrefs.prefs(context).edit().putBoolean(TvPrefs.DJ, djEnabled).apply()
                             tv.settingsChanged()
-                            AppStatus.report("dj", if (djEnabled) "SPOTV DJ enabled" else "SPOTV DJ disabled", AppStatus.INFO, 2500)
+                            AppStatus.report("dj", if (djEnabled) "Track voice announcements enabled" else "Track voice announcements disabled", AppStatus.INFO, 2500)
                         }, active = djEnabled)
                         PlayerAction("Start radio", {
                             tv.autoQueue.startRadio(np)
