@@ -121,6 +121,17 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
      * Start something from the library. With no active Spotify device (Spotify says 404) the music is moved
      * to the first device we can find, so a song can be started from the TV even when nothing was playing.
      */
+    /** Play an album / playlist / artist in shuffled order. Shuffle is set again after the start, as a fresh device may reset it. */
+    fun shuffleFromBrowse(contextUri: String, label: String) {
+        viewModelScope.launch {
+            api.shuffle(true)
+            playFromBrowse(contextUri = contextUri, label = label)
+            kotlinx.coroutines.delay(1500)
+            api.shuffle(true)
+            player.refreshSoon()
+        }
+    }
+
     fun playFromBrowse(
         contextUri: String? = null,
         uris: List<String>? = null,

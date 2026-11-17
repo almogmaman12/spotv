@@ -292,6 +292,8 @@ private fun DetailPage(tv: TvViewModel, detail: Detail, s: Float, onOpen: (Entry
                 }
             }
             Pill("Play", s, Modifier.focusRequester(focus)) { tv.playFromBrowse(contextUri = entry.uri, label = entry.title) }
+            Spacer(Modifier.width((12f * s).dp))
+            Pill("Shuffle", s) { tv.shuffleFromBrowse(entry.uri, entry.title) }
         }
         Loaded(tv, listing, s) { list ->
             LazyColumn(contentPadding = PaddingValues(bottom = (24f * s).dp), verticalArrangement = Arrangement.spacedBy((4f * s).dp)) {
