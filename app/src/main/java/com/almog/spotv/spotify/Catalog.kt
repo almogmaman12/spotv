@@ -1,5 +1,6 @@
 package com.almog.spotv.spotify
 
+import android.os.SystemClock
 import com.almog.spotv.DebugLog
 import java.net.URLEncoder
 import org.json.JSONArray
@@ -38,6 +39,30 @@ data class SpotifyDevice(val id: String, val name: String, val type: String, val
 /** Browsing, search, library and device calls (the parts of the Web API a development-mode app still has). */
 class Catalog(private val api: SpotifyApi) {
 
+    private data class CachedListing(val expiresAt: Long, val listing: Listing)
+    private val listingCache = HashMap<String, CachedListing>()
+
+    /** Keep recently opened pages warm so returning through the TV library feels instant. */
+    private suspend fun cachedListing(
+        key: String,
+        ttlMs: Long = 90_000L,
+        load: suspend () -> Listing,
+    ): Listing {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(listingCache) {
+            val cached = listingCache[key]
+            if (cached != null && cached.expiresAt > now) return cached.listing
+            if (cached != null) listingCache.remove(key)
+        }
+        val loaded = load()
+        if (loaded.code == 200) {
+            synchronized(listingCache) {
+                listingCache[key] = CachedListing(SystemClock.elapsedRealtime() + ttlMs, loaded)
+            }
+        }
+        return loaded
+    }
+
     // ---- reading ---------------------------------------------------------------------------
 
     suspend fun search(query: String): SearchResults {
@@ -59,19 +84,23 @@ class Catalog(private val api: SpotifyApi) {
         }
     }
 
-    suspend fun myPlaylists(): Listing = pagedList("/me/playlists", "limit=50", { it.optJSONArray("items") }, Kind.PLAYLIST, pages = 4)
-
-    /** Songs played lately (newest first, repeats removed). */
-    suspend fun recentlyPlayed(): Listing {
-        val raw = api.call("GET", "/me/player/recently-played", "limit=50") ?: return Listing(emptyList(), -1)
-        if (raw.code != 200) return Listing(emptyList(), raw.code)
-        val arr = try { JSONObject(raw.body).optJSONArray("items") } catch (e: Exception) { null } ?: return Listing(emptyList(), 200)
-        return Listing(entries(unwrap(arr, "track"), Kind.TRACK).distinctBy { it.uri }, 200)
+    suspend fun myPlaylists(): Listing = cachedListing("playlists") {
+        pagedList("/me/playlists", "limit=50", { it.optJSONArray("items") }, Kind.PLAYLIST, pages = 4)
     }
 
-    suspend fun topArtists(): Listing = top("artists", Kind.ARTIST)
+    /** Songs played lately (newest first, repeats removed). */
+    suspend fun recentlyPlayed(): Listing = cachedListing("home:recent", 45_000L) {
+        val raw = api.call("GET", "/me/player/recently-played", "limit=50")
+            ?: return@cachedListing Listing(emptyList(), -1)
+        if (raw.code != 200) return@cachedListing Listing(emptyList(), raw.code)
+        val arr = try { JSONObject(raw.body).optJSONArray("items") } catch (e: Exception) { null }
+            ?: return@cachedListing Listing(emptyList(), 200)
+        Listing(entries(unwrap(arr, "track"), Kind.TRACK).distinctBy { it.uri }, 200)
+    }
 
-    suspend fun topTracks(): Listing = top("tracks", Kind.TRACK)
+    suspend fun topArtists(): Listing = cachedListing("home:artists") { top("artists", Kind.ARTIST) }
+
+    suspend fun topTracks(): Listing = cachedListing("home:tracks") { top("tracks", Kind.TRACK) }
 
     private suspend fun top(what: String, kind: Kind): Listing {
         val raw = api.call("GET", "/me/top/$what", "limit=20&time_range=medium_term") ?: return Listing(emptyList(), -1)
@@ -80,15 +109,19 @@ class Catalog(private val api: SpotifyApi) {
         return Listing(entries(arr, kind), 200)
     }
 
-    suspend fun savedTracks(): Listing = pagedList(
-        "/me/tracks", "limit=50",
-        { it.optJSONArray("items")?.let { arr -> unwrap(arr, "track") } }, Kind.TRACK, pages = 4,
-    )
+    suspend fun savedTracks(): Listing = cachedListing("library:tracks") {
+        pagedList(
+            "/me/tracks", "limit=50",
+            { it.optJSONArray("items")?.let { arr -> unwrap(arr, "track") } }, Kind.TRACK, pages = 4,
+        )
+    }
 
-    suspend fun savedAlbums(): Listing = pagedList(
-        "/me/albums", "limit=50",
-        { it.optJSONArray("items")?.let { arr -> unwrap(arr, "album") } }, Kind.ALBUM, pages = 4,
-    )
+    suspend fun savedAlbums(): Listing = cachedListing("library:albums") {
+        pagedList(
+            "/me/albums", "limit=50",
+            { it.optJSONArray("items")?.let { arr -> unwrap(arr, "album") } }, Kind.ALBUM, pages = 4,
+        )
+    }
 
     suspend fun followedArtists(): Listing {
         val raw = api.call("GET", "/me/following", "type=artist&limit=50") ?: return Listing(emptyList(), -1)
