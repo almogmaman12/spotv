@@ -67,9 +67,13 @@ import com.almog.spotv.spotify.SpotifyDevice
 import kotlinx.coroutines.delay
 
 private val Green = Color(0xFF1DB954)
-private val Panel = Color(0xFF0E0E10)
+private val Panel = Color(0xFF121212)
+
+/** Spotify's own DJ playlist. Whether it can be started from here depends on the account / region. */
+private const val DJ_URI = "spotify:playlist:37i9dQZF1EYkqdzj48dyYq"
 
 private enum class Section(val label: String) {
+    HOME("Home"),
     SEARCH("Search"),
     PLAYLISTS("Playlists"),
     LIKED("Liked songs"),
@@ -90,7 +94,7 @@ private class Detail(val entry: Entry)
 fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier.fillMaxSize().background(Panel)) {
         val s = maxHeight.value / 540f
-        var section by remember { mutableStateOf(Section.PLAYLISTS) }
+        var section by remember { mutableStateOf(Section.HOME) }
         val stack = remember { mutableStateListOf<Detail>() }
         val target by tv.browseTarget.collectAsStateWithLifecycle()
         LaunchedEffect(target) {
@@ -98,13 +102,14 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
         }
         BackHandler { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) else tv.closeBrowse() }
 
-        Row(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+        Row(Modifier.weight(1f).fillMaxWidth()) {
             // The menu on the left.
             Column(
                 Modifier
                     .width((220f * s).dp)
                     .fillMaxHeight()
-                    .background(Color.White.copy(alpha = 0.04f))
+                    .background(Color.Black)
                     .padding(vertical = (28f * s).dp, horizontal = (14f * s).dp),
                 verticalArrangement = Arrangement.spacedBy((6f * s).dp),
             ) {
@@ -119,7 +124,7 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
                 for (sec in Section.values()) {
                     RailItem(
                         label = sec.label, selected = sec == section, s = s,
-                        modifier = if (sec == Section.PLAYLISTS) Modifier.focusRequester(first) else Modifier,
+                        modifier = if (sec == Section.HOME) Modifier.focusRequester(first) else Modifier,
                     ) {
                         if (sec != section) {
                             section = sec
@@ -135,6 +140,7 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
                     DetailPage(tv, top, s) { stack.add(Detail(it)) }
                 } else {
                     when (section) {
+                        Section.HOME -> HomePage(tv, s) { stack.add(Detail(it)) }
                         Section.SEARCH -> SearchPage(tv, s) { stack.add(Detail(it)) }
                         Section.PLAYLISTS -> GridPage(tv, "Your playlists", s, { tv.catalog.myPlaylists() }) { stack.add(Detail(it)) }
                         Section.ALBUMS -> GridPage(tv, "Saved albums", s, { tv.catalog.savedAlbums() }) { stack.add(Detail(it)) }
@@ -146,10 +152,82 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
                 }
             }
         }
+        MiniPlayer(tv, s)
+        }
     }
 }
 
 // ---- pages ------------------------------------------------------------------------------------
+
+/** What is playing, along the bottom, so you never lose track of it while browsing. */
+@Composable
+private fun MiniPlayer(tv: TvViewModel, s: Float) {
+    val np by tv.player.state.collectAsStateWithLifecycle()
+    val n = np ?: return
+    Row(
+        Modifier.fillMaxWidth().background(Color(0xFF181818)).padding(horizontal = (20f * s).dp, vertical = (8f * s).dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy((14f * s).dp),
+    ) {
+        Box(Modifier.size((44f * s).dp).clip(RoundedCornerShape(4.dp))) { Picture(n.coverUrl, Modifier.fillMaxSize()) }
+        Column(Modifier.weight(1f)) {
+            Text(n.title, color = Color.White, fontSize = (16f * s).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(n.artist, color = Color.White.copy(alpha = 0.6f), fontSize = (13f * s).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text(
+            (if (n.isPlaying) "Playing" else "Paused") + (n.deviceName?.let { " on $it" } ?: ""),
+            color = Green, fontSize = (13f * s).sp,
+        )
+    }
+}
+
+@Composable
+private fun HomePage(tv: TvViewModel, s: Float, onOpen: (Entry) -> Unit) {
+    val recent by produceState<Listing?>(null) { value = tv.catalog.recentlyPlayed() }
+    val playlists by produceState<Listing?>(null) { value = tv.catalog.myPlaylists() }
+    val artists by produceState<Listing?>(null) { value = tv.catalog.topArtists() }
+    val tracks by produceState<Listing?>(null) { value = tv.catalog.topTracks() }
+    val dj = remember { Entry(Kind.PLAYLIST, DJ_URI.substringAfterLast(':'), DJ_URI, "DJ", "Spotify's DJ · experimental", null) }
+    fun open(e: Entry, from: List<Entry>) {
+        when {
+            e.uri == DJ_URI -> tv.playFromBrowse(contextUri = DJ_URI, label = "DJ")
+            e.kind == Kind.TRACK -> tv.playFromBrowse(uris = from.dropWhile { it.uri != e.uri }.take(100).map { it.uri }, label = e.title)
+            else -> onOpen(e)
+        }
+    }
+    Column(Modifier.fillMaxSize()) {
+        PageTitle("Good ${greeting()}", s)
+        // A hint if the account hasn't granted the newer permissions yet.
+        if (listOf(recent, playlists).any { it != null && (it.code == 401 || it.code == 403) }) NeedsLogin(tv, s)
+        LazyColumn(contentPadding = PaddingValues(bottom = (24f * s).dp), verticalArrangement = Arrangement.spacedBy((10f * s).dp)) {
+            item { Shelf("Made for you", listOf(dj), s) { open(it, emptyList()) } }
+            item { Shelf("Recently played", recent?.items.orEmpty(), s) { open(it, recent?.items.orEmpty()) } }
+            item { Shelf("Your playlists", playlists?.items.orEmpty(), s) { open(it, emptyList()) } }
+            item { Shelf("Your top artists", artists?.items.orEmpty(), s) { open(it, emptyList()) } }
+            item { Shelf("Your top songs", tracks?.items.orEmpty(), s) { open(it, tracks?.items.orEmpty()) } }
+        }
+    }
+}
+
+private fun greeting(): String {
+    val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return if (h < 5) "night" else if (h < 12) "morning" else if (h < 18) "afternoon" else "evening"
+}
+
+/** One row of cards you scroll sideways. Empty shelves are skipped. */
+@Composable
+private fun Shelf(title: String, list: List<Entry>, s: Float, onOpen: (Entry) -> Unit) {
+    if (list.isEmpty()) return
+    Column {
+        Text(title, color = Color.White, fontSize = (21f * s).sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = (8f * s).dp))
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = PaddingValues(vertical = (6f * s).dp, horizontal = (4f * s).dp),
+            horizontalArrangement = Arrangement.spacedBy((16f * s).dp),
+        ) {
+            items(list, key = { it.uri }) { e -> Box(Modifier.width((150f * s).dp)) { Card(e, s) { onOpen(e) } } }
+        }
+    }
+}
 
 @Composable
 private fun GridPage(tv: TvViewModel, title: String, s: Float, load: suspend () -> Listing, onOpen: (Entry) -> Unit) {

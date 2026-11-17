@@ -61,6 +61,25 @@ class Catalog(private val api: SpotifyApi) {
 
     suspend fun myPlaylists(): Listing = pagedList("/me/playlists", "limit=50", { it.optJSONArray("items") }, Kind.PLAYLIST, pages = 4)
 
+    /** Songs played lately (newest first, repeats removed). */
+    suspend fun recentlyPlayed(): Listing {
+        val raw = api.call("GET", "/me/player/recently-played", "limit=50") ?: return Listing(emptyList(), -1)
+        if (raw.code != 200) return Listing(emptyList(), raw.code)
+        val arr = try { JSONObject(raw.body).optJSONArray("items") } catch (e: Exception) { null } ?: return Listing(emptyList(), 200)
+        return Listing(entries(unwrap(arr, "track"), Kind.TRACK).distinctBy { it.uri }, 200)
+    }
+
+    suspend fun topArtists(): Listing = top("artists", Kind.ARTIST)
+
+    suspend fun topTracks(): Listing = top("tracks", Kind.TRACK)
+
+    private suspend fun top(what: String, kind: Kind): Listing {
+        val raw = api.call("GET", "/me/top/$what", "limit=20&time_range=medium_term") ?: return Listing(emptyList(), -1)
+        if (raw.code != 200) return Listing(emptyList(), raw.code)
+        val arr = try { JSONObject(raw.body).optJSONArray("items") } catch (e: Exception) { null }
+        return Listing(entries(arr, kind), 200)
+    }
+
     suspend fun savedTracks(): Listing = pagedList(
         "/me/tracks", "limit=50",
         { it.optJSONArray("items")?.let { arr -> unwrap(arr, "track") } }, Kind.TRACK, pages = 4,
