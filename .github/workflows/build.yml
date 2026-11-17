@@ -14,6 +14,16 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.2.12479018"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Build native playback core
+        run: cargo ndk --manifest-path native/Cargo.toml -t arm64-v8a -t armeabi-v7a -t x86_64 -o app/src/main/jniLibs build --release
       - uses: gradle/actions/setup-gradle@v4
       - name: Debug APK
         run: ./gradlew --no-daemon assembleDebug
