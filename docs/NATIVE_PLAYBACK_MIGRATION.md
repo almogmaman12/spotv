@@ -23,8 +23,8 @@ GPL-3.0 application code is not copied into SpotV.
 4. Connect player: make SpotV a Connect device and route queue, seek, shuffle,
    repeat, volume and track changes through the native player.
 5. Spotify DJ narration: read per-track intro/jump/outro narration metadata,
-   request generated voice audio from `client-tts/v1/fulfill`, decode it, and
-   mix it into the same PCM output as music. Prefetch narration and duck music
+   decode the prefetched voice clips and mix them into the same PCM output as
+   music. Prefetch narration and duck music
    without pausing playback.
 6. UI cutover: connect the player UI to native state, retaining Web API
    metadata/catalogue calls where appropriate.
@@ -34,9 +34,10 @@ GPL-3.0 application code is not copied into SpotV.
 The native session handshake and Spotify DJ context-page request are now
 wired through JNI and exposed by the experimental "Connect Spotify DJ"
 settings action. It retrieves the real DJ session's track URIs, continuation
-address, and available per-track intro/jump/outro narration metadata. It does
-not yet synthesize narration audio, play those tracks natively, or mix speech
-with music.
+address, and available per-track intro/jump/outro narration metadata. It
+also starts background requests to Spotify's TTS service and caches returned
+voice clips in native memory. The clips are not decoded or mixed into music
+yet, and the DJ tracks are not yet played by the native Connect player.
 
 The existing Web API player remains active until native playback and reconnect
 have passed device-level tests. Do not expose a native playback toggle before
