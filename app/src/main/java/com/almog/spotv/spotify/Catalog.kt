@@ -134,7 +134,9 @@ class Catalog(private val api: SpotifyApi) {
     }
 
     /** Playlist songs. Spotify only returns them for playlists you own or collaborate on. */
-    suspend fun playlistTracks(id: String): Listing {
+    suspend fun playlistTracks(id: String): Listing = cachedListing("playlist:$id") { loadPlaylistTracks(id) }
+
+    private suspend fun loadPlaylistTracks(id: String): Listing {
         val raw = api.call("GET", "/playlists/$id/items", "limit=100&additional_types=track")
             ?: return Listing(emptyList(), -1)
         if (raw.code != 200) return Listing(emptyList(), raw.code)
@@ -153,7 +155,9 @@ class Catalog(private val api: SpotifyApi) {
         }
     }
 
-    suspend fun albumTracks(album: Entry): Listing {
+    suspend fun albumTracks(album: Entry): Listing = cachedListing("album:${album.id}") { loadAlbumTracks(album) }
+
+    private suspend fun loadAlbumTracks(album: Entry): Listing {
         val raw = api.call("GET", "/albums/${album.id}/tracks", "limit=50") ?: return Listing(emptyList(), -1)
         if (raw.code != 200) return Listing(emptyList(), raw.code)
         return try {
@@ -165,7 +169,9 @@ class Catalog(private val api: SpotifyApi) {
         }
     }
 
-    suspend fun artistAlbums(id: String): Listing {
+    suspend fun artistAlbums(id: String): Listing = cachedListing("artist:$id") { loadArtistAlbums(id) }
+
+    private suspend fun loadArtistAlbums(id: String): Listing {
         val raw = api.call("GET", "/artists/$id/albums", "include_groups=album,single&limit=50") ?: return Listing(emptyList(), -1)
         if (raw.code != 200) return Listing(emptyList(), raw.code)
         return try {
