@@ -24,7 +24,10 @@ jobs:
             exit 1
           fi
           echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+          # sdkmanager closes the pipe after accepting licenses, so don't treat yes' SIGPIPE as a failure.
+          set +o pipefail
           yes | "$SDKMANAGER" --licenses
+          set -o pipefail
           "$SDKMANAGER" --install "ndk;27.2.12479018"
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
