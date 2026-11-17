@@ -70,8 +70,6 @@ private val Green = Color(0xFF1DB954)
 private val Panel = Color(0xFF121212)
 
 /** Spotify's own DJ playlist. Whether it can be started from here depends on the account / region. */
-private const val DJ_URI = "spotify:playlist:37i9dQZF1EYkqdzj48dyYq"
-
 private enum class Section(val label: String) {
     HOME("Home"),
     SEARCH("Search"),
@@ -164,20 +162,59 @@ fun BrowseScreen(tv: TvViewModel, modifier: Modifier = Modifier) {
 private fun MiniPlayer(tv: TvViewModel, s: Float) {
     val np by tv.player.state.collectAsStateWithLifecycle()
     val n = np ?: return
-    Row(
-        Modifier.fillMaxWidth().background(Color(0xFF181818)).padding(horizontal = (20f * s).dp, vertical = (8f * s).dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy((14f * s).dp),
-    ) {
-        Box(Modifier.size((44f * s).dp).clip(RoundedCornerShape(4.dp))) { Picture(n.coverUrl, Modifier.fillMaxSize()) }
-        Column(Modifier.weight(1f)) {
-            Text(n.title, color = Color.White, fontSize = (16f * s).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(n.artist, color = Color.White.copy(alpha = 0.6f), fontSize = (13f * s).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val progress = if (n.durationMs > 0L) {
+        (n.estimatedProgressMs().toFloat() / n.durationMs).coerceIn(0f, 1f)
+    } else 0f
+
+    Column(Modifier.fillMaxWidth().background(Color(0xFF181818))) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = (22f * s).dp, vertical = (10f * s).dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy((14f * s).dp),
+        ) {
+            Box(Modifier.size((48f * s).dp).clip(RoundedCornerShape(5.dp))) {
+                Picture(n.coverUrl, Modifier.fillMaxSize())
+            }
+            Column(Modifier.weight(1f)) {
+                Text(n.title, color = Color.White, fontSize = (17f * s).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(n.artist, color = Color.White.copy(alpha = 0.62f), fontSize = (14f * s).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            MiniControl("◀|", s) { tv.player.previous() }
+            MiniControl(if (n.isPlaying) "Ⅱ" else "▶", s, primary = true) { tv.player.playPause() }
+            MiniControl("|▶", s) { tv.player.next() }
+            Column(Modifier.width((150f * s).dp)) {
+                Text(
+                    (n.deviceName ?: "Spotify") + if (n.isPlaying) " · Playing" else " · Paused",
+                    color = Color.White.copy(alpha = 0.58f), fontSize = (12f * s).sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text("FULL LYRICS  ↗", color = Green, fontSize = (12f * s).sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { tv.closeBrowse() }.padding(top = (3f * s).dp))
+            }
         }
-        Text(
-            (if (n.isPlaying) "Playing" else "Paused") + (n.deviceName?.let { " on $it" } ?: ""),
-            color = Green, fontSize = (13f * s).sp,
-        )
+        Box(Modifier.fillMaxWidth().height((2f * s).dp).background(Color.White.copy(alpha = 0.10f))) {
+            Box(Modifier.fillMaxWidth(progress).height((2f * s).dp).background(Green))
+        }
+    }
+}
+
+@Composable
+private fun MiniControl(label: String, s: Float, primary: Boolean = false, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        Modifier.size((if (primary) 46f else 38f) * s.dp)
+            .clip(CircleShape)
+            .background(when {
+                focused -> Color.White
+                primary -> Green
+                else -> Color.White.copy(alpha = 0.08f)
+            })
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onClick)
+            .focusable(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = if (focused || primary) Color.Black else Color.White, fontSize = (if (primary) 18f else 14f) .times(s).sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -187,10 +224,8 @@ private fun HomePage(tv: TvViewModel, s: Float, onOpen: (Entry) -> Unit) {
     val playlists by produceState<Listing?>(null) { value = tv.catalog.myPlaylists() }
     val artists by produceState<Listing?>(null) { value = tv.catalog.topArtists() }
     val tracks by produceState<Listing?>(null) { value = tv.catalog.topTracks() }
-    val dj = remember { Entry(Kind.PLAYLIST, DJ_URI.substringAfterLast(':'), DJ_URI, "DJ", "Spotify's DJ · experimental", null) }
     fun open(e: Entry, from: List<Entry>) {
         when {
-            e.uri == DJ_URI -> tv.playFromBrowse(contextUri = DJ_URI, label = "DJ")
             e.kind == Kind.TRACK -> tv.playFromBrowse(uris = from.dropWhile { it.uri != e.uri }.take(100).map { it.uri }, label = e.title)
             else -> onOpen(e)
         }
@@ -200,7 +235,6 @@ private fun HomePage(tv: TvViewModel, s: Float, onOpen: (Entry) -> Unit) {
         // A hint if the account hasn't granted the newer permissions yet.
         if (listOf(recent, playlists).any { it != null && (it.code == 401 || it.code == 403) }) NeedsLogin(tv, s)
         LazyColumn(contentPadding = PaddingValues(bottom = (24f * s).dp), verticalArrangement = Arrangement.spacedBy((10f * s).dp)) {
-            item { Shelf("Made for you", listOf(dj), s) { open(it, emptyList()) } }
             item { Shelf("Recently played", recent?.items.orEmpty(), s) { open(it, recent?.items.orEmpty()) } }
             item { Shelf("Your playlists", playlists?.items.orEmpty(), s) { open(it, emptyList()) } }
             item { Shelf("Your top artists", artists?.items.orEmpty(), s) { open(it, emptyList()) } }
