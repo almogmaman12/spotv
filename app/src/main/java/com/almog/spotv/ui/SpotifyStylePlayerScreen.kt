@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -29,10 +28,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
@@ -51,6 +52,7 @@ import com.almog.spotv.lyrics.viewmodel.LyricsViewModel
 import com.almog.spotv.spotify.NowPlaying
 import com.almog.spotv.spotify.PlayerRepository
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val PlayerGreen = Color(0xFF1DB954)
 private val PlayerSurface = Color(0xFF181818)
@@ -79,10 +81,15 @@ internal fun SpotifyStylePlayerScreen(
     var autoplayEnabled by remember { mutableStateOf(TvPrefs.prefs(context).getBoolean(TvPrefs.AUTOPLAY, true)) }
     var showLyrics by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
-    var volume by remember(np.trackId) { mutableFloatStateOf((np.volumePercent ?: 50).toFloat()) }
+    var liked by remember(np.trackId) { mutableStateOf<Boolean?>(null) }
+    val scope = rememberCoroutineScope()
     var position by remember(np.trackId) { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }
     var positionMs by remember(np.trackId) { mutableStateOf(np.estimatedProgressMs()) }
+
+    LaunchedEffect(np.trackId) {
+        liked = if (np.isPodcast || np.trackId.isBlank()) null else tv.catalog.isSaved("spotify:track:${np.trackId}")
+    }
 
     BackHandler(enabled = showQueue || showLyrics) {
         if (showQueue) showQueue = false else showLyrics = false
@@ -295,6 +302,17 @@ internal fun SpotifyStylePlayerScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        if (liked != null) PlayerAction(if (liked == true) "♥ Liked" else "♡ Like", {
+                            val want = liked != true
+                            liked = want
+                            scope.launch {
+                                val code = tv.catalog.setSaved("spotify:track:${np.trackId}", want)
+                                if (code !in 200..299) {
+                                    liked = !want
+                                    AppStatus.report("like", "Couldn't update Liked Songs (Spotify said $code)", AppStatus.WARN, 4000)
+                                }
+                            }
+                        }, active = liked == true)
                         PlayerAction(if (djEnabled) "DJ On" else "DJ Off", {
                             djEnabled = !djEnabled
                             TvPrefs.prefs(context).edit().putBoolean(TvPrefs.DJ, djEnabled).apply()
@@ -345,6 +363,7 @@ private fun PlayerAction(
                 }
             )
             .clickable(onClick = onClick)
+            .onFocusChanged { focused = it.isFocused }
             .focusable()
             .padding(horizontal = 13.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center,
