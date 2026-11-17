@@ -202,7 +202,7 @@ private fun MiniPlayer(tv: TvViewModel, s: Float) {
 private fun MiniControl(label: String, s: Float, primary: Boolean = false, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Box(
-        Modifier.size((if (primary) 46f else 38f) * s.dp)
+        Modifier.size(((if (primary) 46f else 38f) * s).dp)
             .clip(CircleShape)
             .background(when {
                 focused -> Color.White
@@ -214,7 +214,7 @@ private fun MiniControl(label: String, s: Float, primary: Boolean = false, onCli
             .focusable(),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (focused || primary) Color.Black else Color.White, fontSize = (if (primary) 18f else 14f) .times(s).sp, fontWeight = FontWeight.Bold)
+        Text(label, color = if (focused || primary) Color.Black else Color.White, fontSize = ((if (primary) 18f else 14f) * s).sp, fontWeight = FontWeight.Bold)
     }
 }
 
