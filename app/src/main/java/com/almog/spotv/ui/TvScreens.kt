@@ -151,11 +151,19 @@ private fun TvRootContent(tv: TvViewModel, lyricsVm: LyricsViewModel) {
             .fillMaxSize()
             .background(Color.Black)
             .onPreviewKeyEvent { e ->
-                if (ambient && e.type == KeyEventType.KeyDown) {
-                    ambient = false
-                    true // the first press only wakes the screen
-                } else {
-                    false
+                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (e.key) {
+                    Key.MediaPlayPause -> { tv.player.playPause(); true }
+                    Key.MediaPlay -> { tv.player.play(); true }
+                    Key.MediaPause -> { tv.player.pause(); true }
+                    Key.MediaNext -> { tv.player.next(); true }
+                    Key.MediaPrevious -> { tv.player.previous(); true }
+                    Key.MediaFastForward -> { tv.player.seekBy(10_000L); true }
+                    Key.MediaRewind -> { tv.player.seekBy(-10_000L); true }
+                    else -> if (ambient) {
+                        ambient = false
+                        true // the first D-pad press only wakes the screen
+                    } else false
                 }
             }
             .graphicsLayer {
