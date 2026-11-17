@@ -5,9 +5,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
+data class NativeDjNarrationLine(
+    val ssml: String,
+    val voice: String,
+    val provider: String,
+    val loudness: Double?,
+    val truePeak: Double?,
+)
+
+data class NativeDjTrackNarration(
+    val intro: NativeDjNarrationLine?,
+    val jump: NativeDjNarrationLine?,
+    val outro: NativeDjNarrationLine?,
+)
+
 data class NativeDjSession(
     val tracks: List<String>,
     val nextPage: String,
+    val narration: Map<String, NativeDjTrackNarration>,
 )
 
 /**
@@ -67,9 +82,35 @@ object NativePlaybackEngine {
             (0 until tracksJson.length()).mapNotNull { index ->
                 tracksJson.optString(index).takeIf { it.startsWith("spotify:track:") }
             }
+        val narrationJson = json.optJSONObject("narration") ?: JSONObject()
+        val narration = buildMap {
+            val keys = narrationJson.keys()
+            while (keys.hasNext()) {
+                val uri = keys.next()
+                val lines = narrationJson.optJSONObject(uri) ?: continue
+                put(uri, NativeDjTrackNarration(
+                    intro = parseLine(lines.optJSONObject("intro")),
+                    jump = parseLine(lines.optJSONObject("jump")),
+                    outro = parseLine(lines.optJSONObject("outro")),
+                ))
+            }
+        }
         return NativeDjSession(
             tracks = tracks.distinct(),
             nextPage = json.optString("next"),
+            narration = narration,
+        )
+    }
+
+    private fun parseLine(json: JSONObject?): NativeDjNarrationLine? {
+        if (json == null) return null
+        val ssml = json.optString("ssml").takeIf { it.isNotBlank() } ?: return null
+        return NativeDjNarrationLine(
+            ssml = ssml,
+            voice = json.optString("voice"),
+            provider = json.optString("provider"),
+            loudness = json.optString("loudness").toDoubleOrNull(),
+            truePeak = json.optString("true_peak").toDoubleOrNull(),
         )
     }
 
