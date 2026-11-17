@@ -14,11 +14,13 @@ use librespot_core::{
     config::SessionConfig,
     session::Session,
 };
+use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use tokio::runtime::Runtime;
 
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 static SESSION: OnceLock<Mutex<Option<Session>>> = OnceLock::new();
+static DJ_METADATA: OnceLock<Mutex<HashMap<String, serde_json::Value>>> = OnceLock::new();
 
 const DJ_CONTEXT_URI: &str = "spotify:playlist:37i9dQZF1EYkqdzj48dyYq";
 const SPCLIENT: &str = "https://spclient.wg.spotify.com";
@@ -32,6 +34,10 @@ fn runtime() -> &'static Runtime {
             .build()
             .expect("could not start SpotV native runtime")
     })
+}
+
+fn dj_metadata() -> &'static Mutex<HashMap<String, serde_json::Value>> {
+    DJ_METADATA.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn session_slot() -> &'static Mutex<Option<Session>> {
@@ -194,6 +200,7 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeD
             None => vec![&document],
         };
         let mut tracks = Vec::<String>::new();
+        let mut narration = serde_json::Map::new();
         let mut next = String::new();
         for page in pages {
             if let Some(url) = page.get("next_page_url").and_then(|v| v.as_str()) {
@@ -206,6 +213,31 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeD
                     if let Some(uri) = item.get("uri").and_then(|v| v.as_str()) {
                         if uri.starts_with("spotify:track:") && !tracks.iter().any(|old| old == uri) {
                             tracks.push(uri.to_string());
+                            let metadata = item.get("metadata").unwrap_or(&serde_json::Value::Null);
+                            let mut track_lines = serde_json::Map::new();
+                            for kind in ["intro", "jump", "outro"] {
+                                let field = |name: &str| {
+                                    let key = format!("narration.{kind}.{name}");
+                                    metadata.get(key).and_then(|value| value.as_str()).map(str::to_string)
+                                };
+                                if let Some(ssml) = field("ssml").filter(|value| !value.is_empty()) {
+                                    let line = serde_json::json!({
+                                        "ssml": ssml,
+                                        "voice": field("voice").unwrap_or_default(),
+                                        "provider": field("tts_provider").unwrap_or_default(),
+                                        "loudness": field("loudness"),
+                                        "true_peak": field("true_peak"),
+                                    });
+                                    track_lines.insert(kind.to_string(), line);
+                                }
+                            }
+                            if !track_lines.is_empty() {
+                                let lines = serde_json::Value::Object(track_lines);
+                                narration.insert(uri.to_string(), lines.clone());
+                                if let Ok(mut known) = dj_metadata().lock() {
+                                    known.insert(uri.to_string(), lines);
+                                }
+                            }
                         }
                     }
                 }
@@ -218,6 +250,7 @@ pub extern "system" fn Java_com_almog_spotv_spotify_NativePlaybackEngine_nativeD
                 "tracks": tracks,
                 "next": next,
                 "count": count,
+                "narration": narration,
             })
             .to_string(),
         )
