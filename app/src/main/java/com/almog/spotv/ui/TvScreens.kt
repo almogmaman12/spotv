@@ -251,6 +251,20 @@ private fun NowPlayingScreen(
     onOpenBrowse: () -> Unit,
     tv: TvViewModel,
 ) {
+    SpotifyStylePlayerScreen(
+        np = np,
+        cover = cover?.image,
+        blurredCover = cover?.blurred,
+        accent = cover?.accent ?: SpotifyGreen,
+        player = player,
+        lyricsVm = lyricsVm,
+        tv = tv,
+        upNext = upNext,
+        onOpenBrowse = onOpenBrowse,
+        onOpenSettings = onOpenSettings,
+    )
+    return
+
     val catalog = tv.catalog
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var volumeAdjust by remember { mutableStateOf(false) }
