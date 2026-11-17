@@ -1,48 +1,50 @@
-# Native playback migration
+# Native playback and Spotify DJ migration
 
-SpotTV is moving from controlling an external Spotify playback device through
+SpotV is moving from controlling an external Spotify playback device through
 the Web API to owning playback through an Android-native librespot engine.
 
 ## Implementation choice
 
 The native engine is built against the MIT-licensed librespot crates. Square
-was used to understand the architecture and Spotify DJ protocol research, but
-its GPL-3.0 application code is not copied into SpotTV. This keeps the new
-native layer independently implemented.
+was used to understand the architecture and Spotify DJ protocol, but its
+GPL-3.0 application code is not copied into SpotV.
 
 ## Milestones
 
 1. Native build foundation: Rust crate, Android ABI builds, JNI loading smoke
-   test. This milestone does not yet play audio.
-2. Session and credentials: pass the user's OAuth access token to the native
-   process, establish a librespot session, persist reusable credentials in
-   app-private storage, and handle refresh/reconnect safely.
+   test. Complete.
+2. Native session and DJ context: connect with the existing short-lived PKCE
+   access token, obtain a session token through librespot Login5, request the
+   Spotify DJ session endpoint, and expose its track pages to Kotlin. The JNI
+   bridge and first-page request are implemented; device testing and reliable
+   reconnect handling remain.
 3. Audio output: implement a bounded PCM bridge to Android AudioTrack, audio
    focus, lifecycle handling, and playback state events.
-4. Connect player: make SpotTV a Connect device and route queue, seek, shuffle,
+4. Connect player: make SpotV a Connect device and route queue, seek, shuffle,
    repeat, volume and track changes through the native player.
-5. Spotify DJ: implement the actual session, not a playlist shortcut:
-   - authenticate the native session and request
-     `lexicon-session-provider/context-resolve/v2/session` for the DJ context;
-   - follow the session's `next_page_url` and deduplicate its track history;
-   - read the per-track intro/jump/outro narration metadata;
-   - request Spotify's narration audio from `client-tts/v1/fulfill`;
-   - decode and mix the narration into the same PCM output as the music, with
-     ducking and prefetching so the music never waits for speech.
+5. Spotify DJ narration: read per-track intro/jump/outro narration metadata,
+   request generated voice audio from `client-tts/v1/fulfill`, decode it, and
+   mix it into the same PCM output as music. Prefetch narration and duck music
+   without pausing playback.
 6. UI cutover: connect the player UI to native state, retaining Web API
    metadata/catalogue calls where appropriate.
 
 ## Current status
 
-Milestone 1 is the only completed milestone at this point. The existing Web API-based player remains active until native playback and
-reconnect have passed device-level tests. Do not expose a native playback
-toggle before then. The old Android TTS announcements are only temporary
-voice hints, not Spotify's DJ. They cannot produce Square-style DJ narration
-while playback is happening on a different Spotify Connect device. The real
-DJ must run inside SpotV's native Connect player so music and speech share one
-audio output.
+The native session handshake and Spotify DJ context-page request are now
+wired through JNI and exposed by the experimental "Connect Spotify DJ"
+settings action. It retrieves the real DJ session's track URIs and continuation
+address. It does not yet play those tracks, request narration audio, or mix
+speech with music.
+
+The existing Web API player remains active until native playback and reconnect
+have passed device-level tests. Do not expose a native playback toggle before
+then. The old Android TTS announcements are temporary voice hints, not
+Spotify's DJ. The actual DJ still requires native Connect playback and
+narration mixed into the same audio output.
 
 ## Build
 
 GitHub Actions cross-compiles the native library for Android ABIs and packages
-it in app/src/main/jniLibs.
+it in app/src/main/jniLibs. Automatic push and pull-request triggers are
+disabled; run the workflow manually only when explicitly requested.
